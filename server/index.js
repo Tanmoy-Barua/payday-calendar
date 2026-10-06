@@ -9,6 +9,7 @@ const root = path.join(__dirname, '..')
 const PORT = Number(process.env.PORT) || 3000
 const dbFile = process.env.PAYDAY_DB || path.join(root, 'data', 'payday.sqlite')
 const db = openDb(dbFile)
+console.log(`Payday Calendar database ${dbFile}`)
 
 const app = express()
 app.use(express.json({ limit: '1mb' }))

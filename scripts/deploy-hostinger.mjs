@@ -53,7 +53,7 @@ async function upload(file) {
   if (!created.ok && created.status !== 201) {
     throw new Error(`Upload create failed: ${created.status} ${await created.text()}`)
   }
-  const patched = await fetch(created.headers.get('location') || target, {
+  const patched = await fetch(target, {
     method: 'PATCH',
     headers: {
       ...headers,
@@ -76,7 +76,6 @@ async function main() {
     await hostinger('PUT', envPath, {
       env_vars: [
         { key: 'NODE_ENV', value: 'production' },
-        { key: 'PAYDAY_DB', value: '/home/u878473359/domains/tanmoybarua.com/payday-data/payday.sqlite' },
       ],
     })
     console.log('Saved runtime settings')
@@ -90,7 +89,7 @@ async function main() {
     root_directory: '.',
     output_directory: 'dist',
     build_script: 'build',
-    entry_file: 'server/boot.js',
+    entry_file: 'server/index.js',
     package_manager: 'npm',
     source_type: 'archive',
     source_options: { archive_path: archiveName },

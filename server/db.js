@@ -1,15 +1,15 @@
 import fs from 'fs'
 import path from 'path'
-import { DatabaseSync } from 'node:sqlite'
+import Database from 'better-sqlite3'
 import { P, diff } from '../src/dates.js'
 
 const FREQS = new Set(['weekly', 'biweekly', 'biweeklyThu', 'semimonthly', 'monthly'])
 
 export function openDb(file) {
   fs.mkdirSync(path.dirname(file), { recursive: true })
-  const db = new DatabaseSync(file)
+  const db = new Database(file)
+  db.pragma('journal_mode = WAL')
   db.exec(`
-    PRAGMA journal_mode = WAL;
     CREATE TABLE IF NOT EXISTS jobs (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
