@@ -3,6 +3,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { redact as hideSecrets } from './redact.js'
 
 const token = process.env.HOSTINGER_API_TOKEN
 const username = 'u878473359'
@@ -14,6 +15,10 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 if (!token) {
   console.error('HOSTINGER_API_TOKEN is not set')
   process.exit(1)
+}
+
+function redact(value) {
+  return hideSecrets(value, token)
 }
 
 function run(cmd, args, cwd) {
@@ -57,7 +62,8 @@ async function hostinger(method, urlPath, body) {
   let data
   try { data = text ? JSON.parse(text) : null } catch { data = text }
   if (!res.ok) {
-    throw new Error(`${method} ${urlPath} -> ${res.status} ${typeof data === 'string' ? data : JSON.stringify(data)}`)
+    const detail = typeof data === 'string' ? data : JSON.stringify(data)
+    throw new Error(`${method} ${urlPath} -> ${res.status} ${redact(detail)}`)
   }
   return data
 }
@@ -77,7 +83,7 @@ async function upload(file) {
     headers: { ...headers, 'Upload-Length': String(size), 'Upload-Offset': '0' },
   })
   if (!created.ok && created.status !== 201) {
-    throw new Error(`Upload create failed: ${created.status} ${await created.text()}`)
+    throw new Error(`Upload create failed: ${created.status} ${redact(await created.text())}`)
   }
   const patched = await fetch(target, {
     method: 'PATCH',
@@ -90,7 +96,7 @@ async function upload(file) {
     duplex: 'half',
   })
   if (!patched.ok && patched.status !== 204) {
-    throw new Error(`Upload patch failed: ${patched.status} ${await patched.text()}`)
+    throw new Error(`Upload patch failed: ${patched.status} ${redact(await patched.text())}`)
   }
   console.log(`Uploaded ${archiveName} (${size} bytes)`)
 }
@@ -108,7 +114,7 @@ async function uploadFile(name, body) {
     headers: { ...headers, 'Upload-Length': String(body.length), 'Upload-Offset': '0' },
   })
   if (!created.ok && created.status !== 201) {
-    throw new Error(`Upload create failed for ${name}: ${created.status} ${await created.text()}`)
+    throw new Error(`Upload create failed for ${name}: ${created.status} ${redact(await created.text())}`)
   }
   const patched = await fetch(target, {
     method: 'PATCH',
@@ -117,7 +123,7 @@ async function uploadFile(name, body) {
     duplex: 'half',
   })
   if (!patched.ok && patched.status !== 204) {
-    throw new Error(`Upload patch failed for ${name}: ${patched.status} ${await patched.text()}`)
+    throw new Error(`Upload patch failed for ${name}: ${patched.status} ${redact(await patched.text())}`)
   }
 }
 
@@ -127,7 +133,7 @@ async function main() {
   const deployed = await hostinger('POST', `/api/hosting/v1/accounts/${username}/websites/${domain}/deploy`, {
     archive_path: archiveName,
   })
-  console.log(JSON.stringify(deployed))
+  console.log(deployed?.message || 'Publish request accepted')
   const listing = await hostinger('GET', `/api/hosting/v1/accounts/${username}/domains/${domain}/files?directory=.&max_depth=2&max_items=50`)
   const names = (listing.items || []).map(item => item.name)
   console.log('Published files:', names.join(', ') || '(none)')
@@ -139,6 +145,6 @@ async function main() {
 }
 
 main().catch(err => {
-  console.error(err.message)
+  console.error(redact(err.message))
   process.exit(1)
 })

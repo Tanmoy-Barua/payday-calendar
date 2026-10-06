@@ -3,3 +3,5 @@ dist
 data/*.sqlite
 data/*.sqlite-wal
 data/*.sqlite-shm
+.env
+.env.*
