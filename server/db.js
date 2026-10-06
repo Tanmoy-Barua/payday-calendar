@@ -1,14 +1,68 @@
 import fs from 'fs'
 import path from 'path'
-import Database from 'better-sqlite3'
+import { createRequire } from 'module'
+import initSqlJs from 'sql.js'
 import { P, diff } from '../src/dates.js'
+
+const require = createRequire(import.meta.url)
+let sqlPromise
+
+function sqlJs() {
+  if (!sqlPromise) {
+    const wasm = fs.readFileSync(require.resolve('sql.js/dist/sql-wasm.wasm'))
+    sqlPromise = initSqlJs({ wasmBinary: wasm })
+  }
+  return sqlPromise
+}
+
+function wrap(raw, file) {
+  let depth = 0
+  function persist() {
+    const tmp = file + '.tmp'
+    fs.writeFileSync(tmp, Buffer.from(raw.export()))
+    fs.renameSync(tmp, file)
+  }
+  return {
+    exec(sql) {
+      const text = String(sql).trim()
+      raw.exec(sql)
+      if (/^BEGIN\b/i.test(text)) depth += 1
+      else if (/^COMMIT\b/i.test(text) || /^END\b/i.test(text)) {
+        depth = Math.max(0, depth - 1)
+        if (depth === 0) persist()
+      } else if (/^ROLLBACK\b/i.test(text)) depth = Math.max(0, depth - 1)
+      else if (depth === 0) persist()
+    },
+    prepare(sql) {
+      return {
+        all(...params) {
+          const stmt = raw.prepare(sql)
+          if (params.length) stmt.bind(params)
+          const rows = []
+          while (stmt.step()) rows.push(stmt.getAsObject())
+          stmt.free()
+          return rows
+        },
+        get(...params) {
+          return this.all(...params)[0]
+        },
+        run(...params) {
+          if (params.length) raw.run(sql, params)
+          else raw.run(sql)
+          if (depth === 0) persist()
+        },
+      }
+    },
+  }
+}
 
 const FREQS = new Set(['weekly', 'biweekly', 'biweeklyThu', 'semimonthly', 'monthly'])
 
-export function openDb(file) {
+export async function openDb(file) {
   fs.mkdirSync(path.dirname(file), { recursive: true })
-  const db = new Database(file)
-  db.pragma('journal_mode = WAL')
+  const SQL = await sqlJs()
+  const raw = fs.existsSync(file) ? new SQL.Database(fs.readFileSync(file)) : new SQL.Database()
+  const db = wrap(raw, file)
   db.exec(`
     CREATE TABLE IF NOT EXISTS jobs (
       id TEXT PRIMARY KEY,

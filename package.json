@@ -10,10 +10,10 @@
   },
   "dependencies": {
     "@vitejs/plugin-react": "^4.4.1",
-    "better-sqlite3": "^13.0.3",
     "express": "^4.21.2",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
+    "sql.js": "^1.14.2",
     "vite": "^6.3.5"
   }
 }

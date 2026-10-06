@@ -5,10 +5,10 @@ import os from 'os'
 import path from 'path'
 import { openDb, getState, saveJobs, saveMonth } from './db.js'
 
-test('sqlite stores schedules and month entries', () => {
+test('sqlite stores schedules and month entries', async () => {
   const file = path.join(os.tmpdir(), `payday-${process.pid}.sqlite`)
   fs.rmSync(file, { force: true })
-  const db = openDb(file)
+  const db = await openDb(file)
   const seeded = getState(db)
   assert.equal(seeded.jobs.length, 1)
   assert.equal(seeded.jobs[0].id, 'company')
@@ -23,7 +23,7 @@ test('sqlite stores schedules and month entries', () => {
     { id: 'weekend', name: 'Weekend', freq: 'weekly', anchor: '2026-10-02', weekEnd: 'sun', lag: 0, rate: 20, color: 1 },
   ])
 
-  const again = openDb(file)
+  const again = await openDb(file)
   const state = getState(again)
   assert.equal(state.jobs[1].name, 'Weekend')
   assert.equal(state.jobs[1].rate, 20)
