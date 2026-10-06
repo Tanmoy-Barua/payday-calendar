@@ -183,4 +183,15 @@ header .status{grid-column:1/-1;order:3}
   .wrap{padding-block:12px 24px}
 }
 
+.pager{display:flex;gap:6px;margin-top:8px}
+.pager a{text-decoration:none;color:var(--muted);font-weight:600;padding:6px 10px;border-radius:8px;border:1px solid transparent}
+.pager a[aria-current="page"]{color:var(--ink);background:var(--surface);border-color:var(--line)}
+.spend{display:grid;gap:12px}
+.spend .field{max-width:240px}
+.bar{display:flex;height:12px;border-radius:999px;overflow:hidden;background:var(--line)}
+.bar i{display:block;height:100%}
+.shares{display:grid}
+.share{display:grid;grid-template-columns:1fr auto;gap:2px 12px;padding:10px 0;border-bottom:1px solid var(--line)}
+.share .note{grid-column:1/-1}
+
 [hidden]{display:none !important}

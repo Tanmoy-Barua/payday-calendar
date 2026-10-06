@@ -4,6 +4,7 @@ import { loadState, saveJobs, saveMonth } from './api.js'
 import Cards from './components/Cards.jsx'
 import Calendar from './components/Calendar.jsx'
 import Side from './components/Side.jsx'
+import Spend from './components/Spend.jsx'
 
 const today = localToday()
 
@@ -20,6 +21,13 @@ export default function App() {
   const [focusTick, setFocusTick] = useState(0)
   const [status, setStatus] = useState('Loading…')
   const [ready, setReady] = useState(false)
+  const [page, setPage] = useState(() => (location.hash === '#spend' ? 'spend' : 'calendar'))
+
+  useEffect(() => {
+    const sync = () => setPage(location.hash === '#spend' ? 'spend' : 'calendar')
+    window.addEventListener('hashchange', sync)
+    return () => window.removeEventListener('hashchange', sync)
+  }, [])
 
   useEffect(() => {
     let cancel = false
@@ -134,14 +142,19 @@ export default function App() {
         <div>
           <h1>Payday Calendar</h1>
           <p className="sub" id="todayLine">Today is {fmtTodayLine(today)}</p>
+          <nav className="pager" aria-label="Pages">
+            <a href="#calendar" aria-current={page === 'calendar' ? 'page' : undefined}>Calendar</a>
+            <a href="#spend" aria-current={page === 'spend' ? 'page' : undefined}>Spending</a>
+          </nav>
         </div>
         <span className="status" id="status">{status}</span>
         <div className="hdr-actions">
-          <button className="btn" type="button" onClick={() => { setMode(jobs.length ? 'jobs' : 'jobform'); setEditingJob(null) }}>Pay schedules</button>
-          <button className="btn primary" type="button" onClick={() => { setView(today.slice(0, 7)); setSelected(today); setMode('day'); bumpFocus() }}>+ Log today</button>
+          <button className="btn" type="button" onClick={() => { location.hash = '#calendar'; setMode(jobs.length ? 'jobs' : 'jobform'); setEditingJob(null) }}>Pay schedules</button>
+          <button className="btn primary" type="button" onClick={() => { location.hash = '#calendar'; setView(today.slice(0, 7)); setSelected(today); setMode('day'); bumpFocus() }}>+ Log today</button>
         </div>
       </header>
-      {ready ? (
+      {ready && page === 'spend' ? <Spend jobs={jobs} months={months} today={today} /> : null}
+      {ready && page === 'calendar' ? (
         <>
           <Cards jobs={jobs} months={months} today={today} onAddSchedule={openJobForm} />
           <div className="main">
