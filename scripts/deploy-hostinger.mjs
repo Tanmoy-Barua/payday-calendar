@@ -22,7 +22,7 @@ function run(cmd, args, cwd) {
 }
 
 function packSite() {
-  if (!fs.existsSync(path.join(root, 'dist', 'index.html'))) run('npm', ['run', 'build'], root)
+  run('npm', ['run', 'build'], root)
   const publish = fs.mkdtempSync(path.join(os.tmpdir(), 'paycheck-'))
   fs.cpSync(path.join(root, 'dist'), publish, { recursive: true })
   fs.copyFileSync(path.join(root, 'hostinger', 'api.php'), path.join(publish, 'api.php'))
