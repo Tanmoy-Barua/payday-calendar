@@ -2,7 +2,6 @@ import { useRef } from 'react'
 import { P, add, fmtLong, fmtMonth, hrs, money, moneyShort, ymd } from '../dates.js'
 import { payOnOrAfter, periodFor } from '../pay.js'
 import { entriesOn } from '../calc.js'
-import { jobColor } from './Cards.jsx'
 
 const DOWS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
@@ -71,6 +70,7 @@ export default function Calendar({ jobs, months, view, selected, filter, today, 
           if (d === selected) cls.push('sel')
           if (per && d >= per.start && d <= per.end) cls.push('inperiod')
           const pj = (pays[d] || []).filter(j => !fj || j.id === fj.id)
+          if (pj.length) cls.push('isPayday')
           const label = fmtLong(d) + (amount ? `, ${money(amount)}` : '') + (pj.length ? ', payday' : '')
           return (
             <button
@@ -85,7 +85,7 @@ export default function Calendar({ jobs, months, view, selected, filter, today, 
               {hours ? <span className="hrs">{hrs(hours)}</span> : null}
               {pj.length ? (
                 <span className="paytag">
-                  {pj.map(j => <span key={j.id} style={{ background: jobColor(j) }} title={`${j.name} payday`}>PAY</span>)}
+                  {pj.map(j => <span key={j.id} style={{ background: 'var(--pay)' }} title={`${j.name} payday`}>PAY</span>)}
                 </span>
               ) : null}
             </button>
