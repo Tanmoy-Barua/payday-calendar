@@ -1,4 +1,4 @@
-import { add, diff, fmtLong, fmtShort, hrs, money } from '../dates.js'
+import { add, diff, fmtLong, fmtShort, fmtTodayLine, hrs, money } from '../dates.js'
 import { payOnOrAfter, periodFor } from '../pay.js'
 import { totals, workDays } from '../calc.js'
 
@@ -47,7 +47,8 @@ export default function Cards({ jobs, months, today, onAddSchedule }) {
               <span className="countdown">{cd}</span>
             </div>
             <div>
-              <div className="label">Next paycheck · {fmtLong(next)}</div>
+              <div className="label">Next paycheck</div>
+              <div className="payday">{fmtTodayLine(next)}</div>
               <div className="big num" style={{ marginTop: 4 }}>{money(sum.a)}</div>
             </div>
             <div className="stats">

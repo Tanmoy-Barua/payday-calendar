@@ -39,6 +39,7 @@ button,select,input{font:inherit;color:inherit}
 .jobname{display:flex;align-items:center;gap:8px;font-weight:600;min-width:0}
 .dot{width:10px;height:10px;border-radius:50%;flex:none}
 .big{font-family:var(--display);font-weight:800;font-size:34px;letter-spacing:-.02em;line-height:1}
+.payday{font-family:var(--display);font-weight:600;font-size:18px;letter-spacing:-.01em;line-height:1.25;margin-top:2px}
 .countdown{background:var(--pay-soft);color:var(--pay);border-radius:999px;padding:3px 10px;font-weight:600;font-size:13px;white-space:nowrap}
 .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;border-top:1px dashed var(--line);padding-top:10px}
 .stats div{display:grid;gap:2px}
