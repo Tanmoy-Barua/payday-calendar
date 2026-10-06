@@ -9,9 +9,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Pack source
-        run: git archive --format=zip --output=/tmp/payday-calendar.zip HEAD
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: sudo apt-get update && sudo apt-get install -y php-cli php-sqlite3
+      - run: php hostinger/api.test.php
+      - run: npm run build
       - name: Publish paycheck.tanmoybarua.com
         env:
           HOSTINGER_API_TOKEN: ${{ secrets.HOSTINGER_API_TOKEN }}
-        run: node scripts/deploy-hostinger.mjs /tmp/payday-calendar.zip
+        run: |
+          if [ -z "$HOSTINGER_API_TOKEN" ]; then
+            echo "HOSTINGER_API_TOKEN is not set, so this push was not published."
+            exit 0
+          fi
+          node scripts/deploy-hostinger.mjs

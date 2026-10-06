@@ -9,4 +9,4 @@ npm start
 
 Then open http://localhost:3000.
 
-The live site is https://paycheck.tanmoybarua.com. A push to `main` publishes that site again.
+The live site is https://paycheck.tanmoybarua.com. That host serves the built React app from the subdomain folder, and a PHP copy of the API stores the same SQLite data. `node scripts/deploy-hostinger.mjs` publishes a new build there. A push can publish it again once the repository secret `HOSTINGER_API_TOKEN` is set.
