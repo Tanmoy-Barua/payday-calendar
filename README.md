@@ -8,3 +8,5 @@ npm start
 ```
 
 Then open http://localhost:3000.
+
+The live site is https://paycheck.tanmoybarua.com. A push to `main` publishes that site again.

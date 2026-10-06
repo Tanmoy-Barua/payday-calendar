@@ -7,7 +7,8 @@ import { openDb, getState, saveJobs, saveMonth } from './db.js'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const root = path.join(__dirname, '..')
 const PORT = Number(process.env.PORT) || 3000
-const db = openDb(path.join(root, 'data', 'payday.sqlite'))
+const dbFile = process.env.PAYDAY_DB || path.join(root, 'data', 'payday.sqlite')
+const db = openDb(dbFile)
 
 const app = express()
 app.use(express.json({ limit: '1mb' }))
