@@ -198,7 +198,10 @@ header .status{grid-column:1/-1;order:3}
 .debt-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
 .debt-pay{grid-template-columns:1fr auto auto;align-items:center}
 .debt-pay .note{grid-column:1 / span 2}
-.debt-pay .btn{grid-column:3;grid-row:1 / span 2;align-self:center}
+.debt-pay .debt-row-actions{grid-column:3;grid-row:1 / span 2;align-self:center;display:flex;flex-wrap:wrap;gap:4px;justify-content:flex-end}
+.debt-row-actions{display:flex;flex-wrap:wrap;gap:4px}
+.debt-actions{display:flex;flex-wrap:wrap;gap:8px}
+.debt-edit{padding:10px 0;border-bottom:1px solid var(--line)}
 .debt-links{display:flex;flex-wrap:wrap;gap:8px}
 .note.bad{color:var(--danger)}
 

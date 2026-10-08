@@ -14,27 +14,241 @@ function withTotals(list) {
   })
 }
 
-function DebtCard({ debt, today, onPay, onRemovePay, onRemoveDebt }) {
-  const [amount, setAmount] = useState('')
-  const [day, setDay] = useState(today)
-  const [note, setNote] = useState('')
+function DebtFields({ idPrefix, name, setName, total, setTotal, opened, setOpened, note, setNote }) {
+  return (
+    <>
+      <label className="field" htmlFor={`${idPrefix}-name`}>
+        <span className="label">Name</span>
+        <input
+          id={`${idPrefix}-name`}
+          type="text"
+          maxLength={60}
+          placeholder="Car loan, credit card, Dad…"
+          value={name}
+          onChange={ev => setName(ev.target.value)}
+        />
+      </label>
+      <div className="debt-fields">
+        <label className="field" htmlFor={`${idPrefix}-total`}>
+          <span className="label">Amount owed</span>
+          <input
+            id={`${idPrefix}-total`}
+            type="number"
+            min="0"
+            step="0.01"
+            inputMode="decimal"
+            value={total}
+            onChange={ev => setTotal(ev.target.value)}
+          />
+        </label>
+        <label className="field" htmlFor={`${idPrefix}-opened`}>
+          <span className="label">Opened</span>
+          <input
+            id={`${idPrefix}-opened`}
+            type="date"
+            value={opened}
+            onChange={ev => setOpened(ev.target.value)}
+          />
+        </label>
+      </div>
+      <label className="field" htmlFor={`${idPrefix}-note`}>
+        <span className="label">Note</span>
+        <input
+          id={`${idPrefix}-note`}
+          type="text"
+          maxLength={200}
+          placeholder="Optional details"
+          value={note}
+          onChange={ev => setNote(ev.target.value)}
+        />
+      </label>
+    </>
+  )
+}
+
+function PaymentFields({ idPrefix, amount, setAmount, day, setDay, note, setNote }) {
+  return (
+    <>
+      <div className="debt-fields">
+        <label className="field" htmlFor={`${idPrefix}-amount`}>
+          <span className="label">Amount paid</span>
+          <input
+            id={`${idPrefix}-amount`}
+            type="number"
+            min="0"
+            step="0.01"
+            inputMode="decimal"
+            value={amount}
+            onChange={ev => setAmount(ev.target.value)}
+          />
+        </label>
+        <label className="field" htmlFor={`${idPrefix}-day`}>
+          <span className="label">Date paid</span>
+          <input
+            id={`${idPrefix}-day`}
+            type="date"
+            value={day}
+            onChange={ev => setDay(ev.target.value)}
+          />
+        </label>
+      </div>
+      <label className="field" htmlFor={`${idPrefix}-note`}>
+        <span className="label">Note</span>
+        <input
+          id={`${idPrefix}-note`}
+          type="text"
+          maxLength={200}
+          placeholder="What this payment was for"
+          value={note}
+          onChange={ev => setNote(ev.target.value)}
+        />
+      </label>
+    </>
+  )
+}
+
+function PaymentRow({ debtId, pay, onSave, onRemove }) {
+  const [editing, setEditing] = useState(false)
+  const [amount, setAmount] = useState(String(pay.amount))
+  const [day, setDay] = useState(pay.day)
+  const [note, setNote] = useState(pay.note || '')
   const [bad, setBad] = useState(false)
+
+  function startEdit() {
+    setAmount(String(pay.amount))
+    setDay(pay.day)
+    setNote(pay.note || '')
+    setBad(false)
+    setEditing(true)
+  }
 
   function submit(ev) {
     ev.preventDefault()
-    const pay = money2(amount)
-    if (!(pay > 0) || !/^\d{4}-\d{2}-\d{2}$/.test(day)) {
+    const nextAmount = money2(amount)
+    if (!(nextAmount > 0) || !/^\d{4}-\d{2}-\d{2}$/.test(day)) {
       setBad(true)
       return
     }
+    onSave(debtId, { ...pay, day, amount: nextAmount, note: note.trim() })
+    setEditing(false)
+  }
+
+  if (editing) {
+    return (
+      <form className="debt-form debt-edit" onSubmit={submit}>
+        <div className="label">Edit payment</div>
+        <PaymentFields
+          idPrefix={`edit-pay-${pay.id}`}
+          amount={amount}
+          setAmount={setAmount}
+          day={day}
+          setDay={setDay}
+          note={note}
+          setNote={setNote}
+        />
+        {bad ? <p className="note bad">Enter an amount greater than zero and a date.</p> : null}
+        <div className="debt-actions">
+          <button className="btn primary" type="submit">Save payment</button>
+          <button className="btn" type="button" onClick={() => setEditing(false)}>Cancel</button>
+        </div>
+      </form>
+    )
+  }
+
+  return (
+    <div className="share debt-pay">
+      <span className="jobname">{fmtShort(pay.day)}</span>
+      <span className="num">{money(pay.amount)}</span>
+      <span className="note">{pay.note || 'Payment'}</span>
+      <div className="debt-row-actions">
+        <button className="btn ghost" type="button" onClick={startEdit}>Edit</button>
+        <button className="btn ghost danger" type="button" onClick={() => onRemove(debtId, pay.id)}>Remove</button>
+      </div>
+    </div>
+  )
+}
+
+function DebtCard({ debt, today, onPay, onSaveDebt, onSavePay, onRemovePay, onRemoveDebt }) {
+  const [editing, setEditing] = useState(false)
+  const [name, setName] = useState(debt.name)
+  const [total, setTotal] = useState(String(debt.total))
+  const [opened, setOpened] = useState(debt.opened)
+  const [note, setNote] = useState(debt.note || '')
+  const [bad, setBad] = useState(false)
+
+  const [amount, setAmount] = useState('')
+  const [day, setDay] = useState(today)
+  const [payNote, setPayNote] = useState('')
+  const [payBad, setPayBad] = useState(false)
+
+  function startEdit() {
+    setName(debt.name)
+    setTotal(String(debt.total))
+    setOpened(debt.opened)
+    setNote(debt.note || '')
     setBad(false)
-    onPay(debt.id, { id: uid(), day, amount: pay, note: note.trim() })
+    setEditing(true)
+  }
+
+  function saveDebt(ev) {
+    ev.preventDefault()
+    const nextTotal = money2(total)
+    const cleanName = name.trim()
+    if (!cleanName || !(nextTotal > 0) || !/^\d{4}-\d{2}-\d{2}$/.test(opened)) {
+      setBad(true)
+      return
+    }
+    onSaveDebt({
+      ...debt,
+      name: cleanName,
+      total: nextTotal,
+      note: note.trim(),
+      opened,
+    })
+    setEditing(false)
+  }
+
+  function submitPayment(ev) {
+    ev.preventDefault()
+    const pay = money2(amount)
+    if (!(pay > 0) || !/^\d{4}-\d{2}-\d{2}$/.test(day)) {
+      setPayBad(true)
+      return
+    }
+    setPayBad(false)
+    onPay(debt.id, { id: uid(), day, amount: pay, note: payNote.trim() })
     setAmount('')
-    setNote('')
+    setPayNote('')
     setDay(today)
   }
 
   const pct = debt.total > 0 ? Math.min(100, Math.round((debt.paid / debt.total) * 100)) : 0
+
+  if (editing) {
+    return (
+      <section className="card debt-card">
+        <form className="debt-form" onSubmit={saveDebt}>
+          <div className="label">Edit debt</div>
+          <DebtFields
+            idPrefix={`edit-debt-${debt.id}`}
+            name={name}
+            setName={setName}
+            total={total}
+            setTotal={setTotal}
+            opened={opened}
+            setOpened={setOpened}
+            note={note}
+            setNote={setNote}
+          />
+          {bad ? <p className="note bad">Enter a name and an amount greater than zero.</p> : null}
+          <div className="debt-actions">
+            <button className="btn primary" type="submit">Save debt</button>
+            <button className="btn" type="button" onClick={() => setEditing(false)}>Cancel</button>
+          </div>
+        </form>
+      </section>
+    )
+  }
 
   return (
     <section className="card debt-card">
@@ -43,7 +257,10 @@ function DebtCard({ debt, today, onPay, onRemovePay, onRemoveDebt }) {
           <div className="label">Debt</div>
           <h2>{debt.name}</h2>
         </div>
-        <button className="btn ghost danger" type="button" onClick={() => onRemoveDebt(debt.id)}>Remove</button>
+        <div className="debt-row-actions">
+          <button className="btn ghost" type="button" onClick={startEdit}>Edit</button>
+          <button className="btn ghost danger" type="button" onClick={() => onRemoveDebt(debt.id)}>Remove</button>
+        </div>
       </div>
       {debt.note ? <p className="note">{debt.note}</p> : null}
       <div className="debt-stats">
@@ -71,53 +288,29 @@ function DebtCard({ debt, today, onPay, onRemovePay, onRemoveDebt }) {
       ) : (
         <div className="shares">
           {debt.payments.map(pay => (
-            <div className="share debt-pay" key={pay.id}>
-              <span className="jobname">{fmtShort(pay.day)}</span>
-              <span className="num">{money(pay.amount)}</span>
-              <span className="note">{pay.note || 'Payment'}</span>
-              <button className="btn ghost danger" type="button" onClick={() => onRemovePay(debt.id, pay.id)}>Remove</button>
-            </div>
+            <PaymentRow
+              key={pay.id}
+              debtId={debt.id}
+              pay={pay}
+              onSave={onSavePay}
+              onRemove={onRemovePay}
+            />
           ))}
         </div>
       )}
 
-      <form className="debt-form" onSubmit={submit}>
+      <form className="debt-form" onSubmit={submitPayment}>
         <div className="label">Log a payment</div>
-        <div className="debt-fields">
-          <label className="field" htmlFor={`pay-amount-${debt.id}`}>
-            <span className="label">Amount paid</span>
-            <input
-              id={`pay-amount-${debt.id}`}
-              type="number"
-              min="0"
-              step="0.01"
-              inputMode="decimal"
-              value={amount}
-              onChange={ev => setAmount(ev.target.value)}
-            />
-          </label>
-          <label className="field" htmlFor={`pay-day-${debt.id}`}>
-            <span className="label">Date paid</span>
-            <input
-              id={`pay-day-${debt.id}`}
-              type="date"
-              value={day}
-              onChange={ev => setDay(ev.target.value)}
-            />
-          </label>
-        </div>
-        <label className="field" htmlFor={`pay-note-${debt.id}`}>
-          <span className="label">Note</span>
-          <input
-            id={`pay-note-${debt.id}`}
-            type="text"
-            maxLength={200}
-            placeholder="What this payment was for"
-            value={note}
-            onChange={ev => setNote(ev.target.value)}
-          />
-        </label>
-        {bad ? <p className="note bad">Enter an amount greater than zero and a date.</p> : null}
+        <PaymentFields
+          idPrefix={`pay-${debt.id}`}
+          amount={amount}
+          setAmount={setAmount}
+          day={day}
+          setDay={setDay}
+          note={payNote}
+          setNote={setPayNote}
+        />
+        {payBad ? <p className="note bad">Enter an amount greater than zero and a date.</p> : null}
         <button className="btn primary" type="submit">Save payment</button>
       </form>
     </section>
@@ -174,6 +367,18 @@ export default function Debt({ debts, onSave }) {
     )))
   }
 
+  function saveDebt(nextDebt) {
+    persist(list.map(debt => (debt.id === nextDebt.id ? { ...debt, ...nextDebt } : debt)))
+  }
+
+  function savePayment(debtId, nextPay) {
+    persist(list.map(debt => (
+      debt.id === debtId
+        ? { ...debt, payments: debt.payments.map(p => (p.id === nextPay.id ? nextPay : p)) }
+        : debt
+    )))
+  }
+
   function removePayment(debtId, paymentId) {
     persist(list.map(debt => (
       debt.id === debtId
@@ -211,51 +416,17 @@ export default function Debt({ debts, onSave }) {
       <section className="card">
         <div className="label">Add a debt</div>
         <form className="debt-form" onSubmit={addDebt}>
-          <label className="field" htmlFor="debtName">
-            <span className="label">Name</span>
-            <input
-              id="debtName"
-              type="text"
-              maxLength={60}
-              placeholder="Car loan, credit card, Dad…"
-              value={name}
-              onChange={ev => setName(ev.target.value)}
-            />
-          </label>
-          <div className="debt-fields">
-            <label className="field" htmlFor="debtTotal">
-              <span className="label">Amount owed</span>
-              <input
-                id="debtTotal"
-                type="number"
-                min="0"
-                step="0.01"
-                inputMode="decimal"
-                value={total}
-                onChange={ev => setTotal(ev.target.value)}
-              />
-            </label>
-            <label className="field" htmlFor="debtOpened">
-              <span className="label">Opened</span>
-              <input
-                id="debtOpened"
-                type="date"
-                value={opened}
-                onChange={ev => setOpened(ev.target.value)}
-              />
-            </label>
-          </div>
-          <label className="field" htmlFor="debtNote">
-            <span className="label">Note</span>
-            <input
-              id="debtNote"
-              type="text"
-              maxLength={200}
-              placeholder="Optional details"
-              value={note}
-              onChange={ev => setNote(ev.target.value)}
-            />
-          </label>
+          <DebtFields
+            idPrefix="new-debt"
+            name={name}
+            setName={setName}
+            total={total}
+            setTotal={setTotal}
+            opened={opened}
+            setOpened={setOpened}
+            note={note}
+            setNote={setNote}
+          />
           {bad ? <p className="note bad">Enter a name and an amount greater than zero.</p> : null}
           <button className="btn primary" type="submit">Add debt</button>
         </form>
@@ -271,6 +442,8 @@ export default function Debt({ debts, onSave }) {
           debt={debt}
           today={today}
           onPay={addPayment}
+          onSaveDebt={saveDebt}
+          onSavePay={savePayment}
           onRemovePay={removePayment}
           onRemoveDebt={removeDebt}
         />
