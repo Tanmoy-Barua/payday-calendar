@@ -1,16 +1,24 @@
 import { useEffect, useState } from 'react'
 import { fmtTodayLine, hrs, localToday, money, fmtShort } from './dates.js'
-import { loadState, saveJobs, saveMonth } from './api.js'
+import { loadState, saveJobs, saveMonth, saveDebts } from './api.js'
 import Cards from './components/Cards.jsx'
 import Calendar from './components/Calendar.jsx'
 import Side from './components/Side.jsx'
 import Spend from './components/Spend.jsx'
+import Debt from './components/Debt.jsx'
 
 const today = localToday()
+
+function pageFromHash() {
+  if (location.hash === '#spend') return 'spend'
+  if (location.hash === '#debt') return 'debt'
+  return 'calendar'
+}
 
 export default function App() {
   const [jobs, setJobs] = useState([])
   const [months, setMonths] = useState({})
+  const [debts, setDebts] = useState([])
   const [view, setView] = useState(today.slice(0, 7))
   const [selected, setSelected] = useState(today)
   const [mode, setMode] = useState('day')
@@ -21,10 +29,10 @@ export default function App() {
   const [focusTick, setFocusTick] = useState(0)
   const [status, setStatus] = useState('Loading…')
   const [ready, setReady] = useState(false)
-  const [page, setPage] = useState(() => (location.hash === '#spend' ? 'spend' : 'calendar'))
+  const [page, setPage] = useState(pageFromHash)
 
   useEffect(() => {
-    const sync = () => setPage(location.hash === '#spend' ? 'spend' : 'calendar')
+    const sync = () => setPage(pageFromHash())
     window.addEventListener('hashchange', sync)
     return () => window.removeEventListener('hashchange', sync)
   }, [])
@@ -35,6 +43,7 @@ export default function App() {
       if (cancel) return
       setJobs(data.jobs || [])
       setMonths(data.months || {})
+      setDebts(data.debts || [])
       setFilter(data.jobs?.[0]?.id || null)
       setStatus('Saved to the database')
       setReady(true)
@@ -84,6 +93,17 @@ export default function App() {
     setStatus('Saving…')
     try {
       await saveMonth(mk, days)
+      setStatus('Saved')
+    } catch {
+      setStatus('Could not save, try again')
+    }
+  }
+
+  async function persistDebts(next) {
+    setDebts(next)
+    setStatus('Saving…')
+    try {
+      await saveDebts(next)
       setStatus('Saved')
     } catch {
       setStatus('Could not save, try again')
@@ -145,6 +165,7 @@ export default function App() {
           <nav className="pager" aria-label="Pages">
             <a href="#calendar" aria-current={page === 'calendar' ? 'page' : undefined}>Calendar</a>
             <a href="#spend" aria-current={page === 'spend' ? 'page' : undefined}>Spending</a>
+            <a href="#debt" aria-current={page === 'debt' ? 'page' : undefined}>Debt</a>
           </nav>
         </div>
         <span className="status" id="status">{status}</span>
@@ -154,6 +175,7 @@ export default function App() {
         </div>
       </header>
       {ready && page === 'spend' ? <Spend jobs={jobs} months={months} today={today} /> : null}
+      {ready && page === 'debt' ? <Debt debts={debts} onSave={persistDebts} /> : null}
       {ready && page === 'calendar' ? (
         <>
           <Cards jobs={jobs} months={months} today={today} onAddSchedule={openJobForm} />

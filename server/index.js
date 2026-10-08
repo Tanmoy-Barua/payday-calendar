@@ -2,7 +2,7 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import express from 'express'
 import { createServer as createViteServer } from 'vite'
-import { openDb, getState, saveJobs, saveMonth } from './db.js'
+import { openDb, getState, saveJobs, saveMonth, saveDebts } from './db.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const root = path.join(__dirname, '..')
@@ -30,6 +30,15 @@ app.put('/api/jobs', (req, res) => {
 app.put('/api/months/:ym', (req, res) => {
   try {
     saveMonth(db, req.params.ym, req.body?.days || {})
+    res.json({ ok: true })
+  } catch (err) {
+    res.status(400).json({ error: err.message || 'Could not save' })
+  }
+})
+
+app.put('/api/debts', (req, res) => {
+  try {
+    saveDebts(db, req.body?.debts || [])
     res.json({ ok: true })
   } catch (err) {
     res.status(400).json({ error: err.message || 'Could not save' })

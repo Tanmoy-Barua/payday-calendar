@@ -83,6 +83,22 @@ export async function openDb(file) {
       amount REAL NOT NULL
     );
     CREATE INDEX IF NOT EXISTS entries_day ON entries(day);
+    CREATE TABLE IF NOT EXISTS debts (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      total REAL NOT NULL,
+      note TEXT NOT NULL DEFAULT '',
+      opened TEXT NOT NULL,
+      position INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE TABLE IF NOT EXISTS debt_payments (
+      id TEXT PRIMARY KEY,
+      debt_id TEXT NOT NULL,
+      day TEXT NOT NULL,
+      amount REAL NOT NULL,
+      note TEXT NOT NULL DEFAULT ''
+    );
+    CREATE INDEX IF NOT EXISTS debt_payments_debt ON debt_payments(debt_id);
   `)
   migrateCompany(db)
   return db
@@ -124,6 +140,25 @@ function jobFromRow(row) {
   }
 }
 
+function money2(n) {
+  return Math.round((Number(n) || 0) * 100) / 100
+}
+
+function debtFromRow(row, payments) {
+  const paid = money2(payments.reduce((sum, p) => sum + p.amount, 0))
+  const total = money2(row.total)
+  return {
+    id: row.id,
+    name: row.name,
+    total,
+    note: row.note || '',
+    opened: row.opened,
+    paid,
+    remaining: money2(Math.max(0, total - paid)),
+    payments,
+  }
+}
+
 export function getState(db) {
   seedIfEmpty(db)
   const jobs = db.prepare('SELECT * FROM jobs ORDER BY position ASC, name ASC').all().map(jobFromRow)
@@ -135,7 +170,15 @@ export function getState(db) {
     const list = month.days[row.day] || (month.days[row.day] = [])
     list.push({ id: row.id, job: row.job_id, hours: row.hours, amount: row.amount })
   }
-  return { jobs, months }
+  const payRows = db.prepare('SELECT id, debt_id, day, amount, note FROM debt_payments ORDER BY day ASC, id ASC').all()
+  const paymentsByDebt = {}
+  for (const row of payRows) {
+    const list = paymentsByDebt[row.debt_id] || (paymentsByDebt[row.debt_id] = [])
+    list.push({ id: row.id, day: row.day, amount: money2(row.amount), note: row.note || '' })
+  }
+  const debts = db.prepare('SELECT * FROM debts ORDER BY position ASC, name ASC').all()
+    .map(row => debtFromRow(row, paymentsByDebt[row.id] || []))
+  return { jobs, months, debts }
 }
 
 function cleanJob(job, position) {
@@ -205,4 +248,65 @@ function nextMonth(ym) {
   m += 1
   if (m > 12) { m = 1; y += 1 }
   return `${y}-${String(m).padStart(2, '0')}`
+}
+
+function cleanDebt(debt, position) {
+  const opened = /^\d{4}-\d{2}-\d{2}$/.test(debt.opened || '') ? debt.opened : '2026-10-01'
+  return {
+    id: String(debt.id || '').slice(0, 40) || 'debt',
+    name: String(debt.name || 'Debt').trim().slice(0, 60) || 'Debt',
+    total: money2(Math.max(0, Number(debt.total) || 0)),
+    note: String(debt.note || '').trim().slice(0, 200),
+    opened,
+    position,
+    payments: Array.isArray(debt.payments) ? debt.payments : [],
+  }
+}
+
+function cleanPayment(payment, debtId) {
+  const day = /^\d{4}-\d{2}-\d{2}$/.test(payment.day || '') ? payment.day : null
+  const id = String(payment.id || '')
+  if (!id || !day) return null
+  return {
+    id: id.slice(0, 40),
+    debtId,
+    day,
+    amount: money2(Math.max(0, Number(payment.amount) || 0)),
+    note: String(payment.note || '').trim().slice(0, 200),
+  }
+}
+
+export function saveDebts(db, debts) {
+  const list = Array.isArray(debts) ? debts : []
+  const insertDebt = db.prepare(`
+    INSERT INTO debts (id, name, total, note, opened, position)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `)
+  const insertPay = db.prepare(`
+    INSERT INTO debt_payments (id, debt_id, day, amount, note)
+    VALUES (?, ?, ?, ?, ?)
+  `)
+  db.exec('BEGIN')
+  try {
+    db.exec('DELETE FROM debt_payments')
+    db.exec('DELETE FROM debts')
+    const seenDebts = new Set()
+    const seenPays = new Set()
+    list.forEach((debt, i) => {
+      const row = cleanDebt(debt, i)
+      if (seenDebts.has(row.id)) return
+      seenDebts.add(row.id)
+      insertDebt.run(row.id, row.name, row.total, row.note, row.opened, row.position)
+      for (const payment of row.payments) {
+        const pay = cleanPayment(payment, row.id)
+        if (!pay || seenPays.has(pay.id)) continue
+        seenPays.add(pay.id)
+        insertPay.run(pay.id, pay.debtId, pay.day, pay.amount, pay.note)
+      }
+    })
+    db.exec('COMMIT')
+  } catch (err) {
+    db.exec('ROLLBACK')
+    throw err
+  }
 }

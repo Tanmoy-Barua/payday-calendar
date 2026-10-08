@@ -22,3 +22,7 @@ export function saveJobs(jobs) {
 export function saveMonth(ym, days) {
   return send('/api/months/' + ym, { days })
 }
+
+export function saveDebts(debts) {
+  return send('/api/debts', { debts })
+}

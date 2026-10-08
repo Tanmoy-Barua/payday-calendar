@@ -93,7 +93,10 @@ export default function Spend({ jobs, months, today }) {
           <ShareList amount={amount} />
         </section>
       ))}
-      <a className="btn" href="#calendar">Back to the calendar</a>
+      <div className="debt-links">
+        <a className="btn" href="#debt">Open debt tracker</a>
+        <a className="btn" href="#calendar">Back to the calendar</a>
+      </div>
     </div>
   )
 }
