@@ -393,44 +393,46 @@ export default function Debt({ debts, onSave }) {
 
   return (
     <div className="spend debt-page">
-      <section className="card">
-        <div className="label">Debt tracker</div>
-        <h2>What you still owe</h2>
-        <p className="note">Add each debt, then log every payment with a short note so the balance stays up to date.</p>
-        <div className="debt-stats">
-          <div>
-            <div className="label">Still owed</div>
-            <div className="big num">{money(owed)}</div>
+      <div className="debt-top">
+        <section className="card">
+          <div className="label">Debt tracker</div>
+          <h2>What you still owe</h2>
+          <p className="note">Add each debt, then log every payment with a short note so the balance stays up to date.</p>
+          <div className="debt-stats">
+            <div>
+              <div className="label">Still owed</div>
+              <div className="big num">{money(owed)}</div>
+            </div>
+            <div>
+              <div className="label">Paid so far</div>
+              <div className="num">{money(paid)}</div>
+            </div>
+            <div>
+              <div className="label">Debts</div>
+              <div className="num">{list.length}</div>
+            </div>
           </div>
-          <div>
-            <div className="label">Paid so far</div>
-            <div className="num">{money(paid)}</div>
-          </div>
-          <div>
-            <div className="label">Debts</div>
-            <div className="num">{list.length}</div>
-          </div>
-        </div>
-      </section>
+        </section>
 
-      <section className="card">
-        <div className="label">Add a debt</div>
-        <form className="debt-form" onSubmit={addDebt}>
-          <DebtFields
-            idPrefix="new-debt"
-            name={name}
-            setName={setName}
-            total={total}
-            setTotal={setTotal}
-            opened={opened}
-            setOpened={setOpened}
-            note={note}
-            setNote={setNote}
-          />
-          {bad ? <p className="note bad">Enter a name and an amount greater than zero.</p> : null}
-          <button className="btn primary" type="submit">Add debt</button>
-        </form>
-      </section>
+        <section className="card">
+          <div className="label">Add a debt</div>
+          <form className="debt-form" onSubmit={addDebt}>
+            <DebtFields
+              idPrefix="new-debt"
+              name={name}
+              setName={setName}
+              total={total}
+              setTotal={setTotal}
+              opened={opened}
+              setOpened={setOpened}
+              note={note}
+              setNote={setNote}
+            />
+            {bad ? <p className="note bad">Enter a name and an amount greater than zero.</p> : null}
+            <button className="btn primary" type="submit">Add debt</button>
+          </form>
+        </section>
+      </div>
 
       {list.length === 0 ? (
         <section className="card">
