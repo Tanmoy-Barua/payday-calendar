@@ -1,11 +1,21 @@
 import { useEffect, useState } from 'react'
 import { fmtTodayLine, hrs, localToday, money, fmtShort } from './dates.js'
 import { loadState, saveJobs, saveMonth, saveDebts } from './api.js'
+import {
+  clearUnlocked,
+  disableLock,
+  isLockEnabled,
+  isUnlocked,
+  lockLabel,
+  lockSupported,
+  registerLock,
+} from './lock.js'
 import Cards from './components/Cards.jsx'
 import Calendar from './components/Calendar.jsx'
 import Side from './components/Side.jsx'
 import Spend from './components/Spend.jsx'
 import Debt from './components/Debt.jsx'
+import LockScreen from './components/LockScreen.jsx'
 
 const today = localToday()
 
@@ -30,6 +40,9 @@ export default function App() {
   const [status, setStatus] = useState('Loading…')
   const [ready, setReady] = useState(false)
   const [page, setPage] = useState(pageFromHash)
+  const [lockOn, setLockOn] = useState(() => isLockEnabled())
+  const [unlocked, setUnlocked] = useState(() => !isLockEnabled() || isUnlocked())
+  const [lockBusy, setLockBusy] = useState(false)
 
   useEffect(() => {
     const sync = () => setPage(pageFromHash())
@@ -38,7 +51,9 @@ export default function App() {
   }, [])
 
   useEffect(() => {
+    if (!unlocked) return undefined
     let cancel = false
+    setStatus('Loading…')
     loadState().then(data => {
       if (cancel) return
       setJobs(data.jobs || [])
@@ -51,7 +66,7 @@ export default function App() {
       if (!cancel) setStatus('Could not load the database')
     })
     return () => { cancel = true }
-  }, [])
+  }, [unlocked])
 
   useEffect(() => {
     if (!flash) return undefined
@@ -156,6 +171,44 @@ export default function App() {
     persistJobs(next)
   }
 
+  async function turnOnLock() {
+    if (!lockSupported()) {
+      setStatus(`${lockLabel()} is not available in this browser. Use Safari on iPhone, or Chrome with device unlock.`)
+      return
+    }
+    setLockBusy(true)
+    try {
+      await registerLock()
+      setLockOn(true)
+      setUnlocked(true)
+      setStatus(`${lockLabel()} lock is on`)
+    } catch (err) {
+      const message = String(err?.message || err || '')
+      if (/cancel|not allowed|abort/i.test(message)) setStatus('Face ID setup cancelled')
+      else setStatus(message || 'Could not turn on Face ID')
+    } finally {
+      setLockBusy(false)
+    }
+  }
+
+  function turnOffLock() {
+    disableLock()
+    setLockOn(false)
+    setUnlocked(true)
+    setStatus(`${lockLabel()} lock is off`)
+  }
+
+  function lockNow() {
+    clearUnlocked()
+    setReady(false)
+    setUnlocked(false)
+    setStatus('Locked')
+  }
+
+  if (lockOn && !unlocked) {
+    return <LockScreen onUnlocked={() => setUnlocked(true)} />
+  }
+
   return (
     <div className="wrap">
       <header>
@@ -167,6 +220,18 @@ export default function App() {
             <a href="#spend" aria-current={page === 'spend' ? 'page' : undefined}>Spending</a>
             <a href="#debt" aria-current={page === 'debt' ? 'page' : undefined}>Debt</a>
           </nav>
+          <div className="lock-controls">
+            {lockOn ? (
+              <>
+                <button className="btn" type="button" onClick={lockNow}>Lock now</button>
+                <button className="btn ghost" type="button" disabled={lockBusy} onClick={turnOffLock}>Turn off {lockLabel()}</button>
+              </>
+            ) : (
+              <button className="btn" type="button" disabled={lockBusy} onClick={turnOnLock}>
+                {lockBusy ? 'Waiting…' : `Protect with ${lockLabel()}`}
+              </button>
+            )}
+          </div>
         </div>
         <span className="status" id="status">{status}</span>
         <div className="hdr-actions">
