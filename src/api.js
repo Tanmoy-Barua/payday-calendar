@@ -1,18 +1,60 @@
-async function send(url, body) {
+async function request(url, options = {}) {
   const res = await fetch(url, {
+    credentials: 'same-origin',
+    ...options,
+    headers: {
+      ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+      ...(options.headers || {}),
+    },
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    const err = new Error(data.error || 'request failed')
+    err.status = res.status
+    err.data = data
+    throw err
+  }
+  return data
+}
+
+async function send(url, body) {
+  return request(url, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   })
-  if (!res.ok) throw new Error('save failed')
-  return res.json()
+}
+
+export function loadAuthStatus() {
+  return request('/api/auth/status')
+}
+
+export function setupAuth(pin, credId) {
+  return request('/api/auth/setup', {
+    method: 'POST',
+    body: JSON.stringify({ pin, credId: credId || '' }),
+  })
+}
+
+export function loginAuth(pin, credId) {
+  return request('/api/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ pin, credId: credId || '' }),
+  })
+}
+
+export function logoutAuth() {
+  return request('/api/auth/logout', { method: 'POST', body: '{}' })
+}
+
+export function disableAuth(pin) {
+  return request('/api/auth/disable', {
+    method: 'POST',
+    body: JSON.stringify({ pin }),
+  })
 }
 
 export function loadState() {
-  return fetch('/api/state').then(res => {
-    if (!res.ok) throw new Error('load failed')
-    return res.json()
-  })
+  return request('/api/state')
 }
 
 export function saveJobs(jobs) {

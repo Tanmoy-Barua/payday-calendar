@@ -104,6 +104,21 @@ export async function openDb(file) {
   `)
   migrateCompany(db)
   ensureDebtColumns(db)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS app_lock (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      enabled INTEGER NOT NULL DEFAULT 0,
+      pin_hash TEXT,
+      cred_id TEXT
+    );
+    CREATE TABLE IF NOT EXISTS sessions (
+      token TEXT PRIMARY KEY,
+      expires REAL NOT NULL
+    );
+  `)
+  if (!db.prepare('SELECT id FROM app_lock WHERE id = 1').get()) {
+    db.prepare('INSERT INTO app_lock (id, enabled) VALUES (1, 0)').run()
+  }
   return db
 }
 

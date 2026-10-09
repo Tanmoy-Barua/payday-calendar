@@ -1,10 +1,18 @@
 import { useEffect, useRef, useState } from 'react'
 import { fmtTodayLine, hrs, localToday, money, fmtShort } from './dates.js'
-import { loadState, saveJobs, saveMonth, saveDebts } from './api.js'
+import {
+  disableAuth,
+  loadAuthStatus,
+  loadState,
+  logoutAuth,
+  saveDebts,
+  saveJobs,
+  saveMonth,
+  setupAuth,
+} from './api.js'
 import {
   clearUnlocked,
   disableLock,
-  isLockEnabled,
   lockLabel,
   lockSupported,
   registerLock,
@@ -39,9 +47,10 @@ export default function App() {
   const [status, setStatus] = useState('Loading…')
   const [ready, setReady] = useState(false)
   const [page, setPage] = useState(pageFromHash)
-  const [lockOn, setLockOn] = useState(() => isLockEnabled())
-  // Fresh visits always need Face ID again when the lock is on.
-  const [unlocked, setUnlocked] = useState(() => !isLockEnabled())
+  const [authReady, setAuthReady] = useState(false)
+  const [lockOn, setLockOn] = useState(false)
+  const [unlocked, setUnlocked] = useState(false)
+  const [setupOpen, setSetupOpen] = useState(false)
   const [lockBusy, setLockBusy] = useState(false)
   const unlockingRef = useRef(false)
 
@@ -52,7 +61,23 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    if (!unlocked) return undefined
+    let cancel = false
+    loadAuthStatus().then(auth => {
+      if (cancel) return
+      setLockOn(!!auth.lockEnabled)
+      setUnlocked(!auth.lockEnabled || !!auth.authenticated)
+      setAuthReady(true)
+    }).catch(() => {
+      if (cancel) return
+      setLockOn(false)
+      setUnlocked(true)
+      setAuthReady(true)
+    })
+    return () => { cancel = true }
+  }, [])
+
+  useEffect(() => {
+    if (!authReady || !unlocked) return undefined
     let cancel = false
     setStatus('Loading…')
     loadState().then(data => {
@@ -63,11 +88,19 @@ export default function App() {
       setFilter(data.jobs?.[0]?.id || null)
       setStatus('Saved to the database')
       setReady(true)
-    }).catch(() => {
-      if (!cancel) setStatus('Could not load the database')
+    }).catch(err => {
+      if (cancel) return
+      if (err?.status === 401 || err?.data?.error === 'locked') {
+        setLockOn(true)
+        setUnlocked(false)
+        setReady(false)
+        setStatus('Locked')
+        return
+      }
+      setStatus('Could not load the database')
     })
     return () => { cancel = true }
-  }, [unlocked])
+  }, [authReady, unlocked])
 
   useEffect(() => {
     if (!lockOn) return undefined
@@ -80,6 +113,7 @@ export default function App() {
       setMonths({})
       setDebts([])
       setStatus('Locked')
+      logoutAuth().catch(() => {})
     }
     function onVisibility() {
       if (document.visibilityState === 'hidden') hidePrivateData()
@@ -195,36 +229,48 @@ export default function App() {
     persistJobs(next)
   }
 
-  async function turnOnLock() {
+  function startLockSetup() {
     if (!lockSupported()) {
-      setStatus(`${lockLabel()} is not available in this browser. Use Safari on iPhone.`)
+      setStatus(`${lockLabel()} is not available in this browser. Use Safari on iPhone to turn the lock on.`)
       return
     }
+    setSetupOpen(true)
+  }
+
+  async function completeLockSetup(pin) {
     setLockBusy(true)
     unlockingRef.current = true
     try {
-      await registerLock()
+      const { credId, pin: passcode } = await registerLock(pin)
+      await setupAuth(passcode, credId)
       setLockOn(true)
       setUnlocked(true)
-      setStatus(`Only your ${lockLabel()} can open this app now`)
-    } catch (err) {
-      const message = String(err?.message || err || '')
-      if (/cancel|not allowed|abort/i.test(message)) setStatus('Face ID setup cancelled')
-      else setStatus(message || 'Could not turn on Face ID')
+      setSetupOpen(false)
+      setStatus(`Locked on the server. Only your ${lockLabel()} or passcode can open it.`)
     } finally {
       unlockingRef.current = false
       setLockBusy(false)
     }
   }
 
-  function turnOffLock() {
-    disableLock()
-    setLockOn(false)
-    setUnlocked(true)
-    setStatus(`${lockLabel()} lock is off`)
+  async function turnOffLock() {
+    const pin = window.prompt('Enter your passcode to turn off the lock')
+    if (pin == null) return
+    setLockBusy(true)
+    try {
+      await disableAuth(pin.trim())
+      disableLock()
+      setLockOn(false)
+      setUnlocked(true)
+      setStatus('Server lock is off')
+    } catch (err) {
+      setStatus(err?.message || 'Could not turn off lock')
+    } finally {
+      setLockBusy(false)
+    }
   }
 
-  function lockNow() {
+  async function lockNow() {
     clearUnlocked()
     setReady(false)
     setJobs([])
@@ -232,6 +278,36 @@ export default function App() {
     setDebts([])
     setUnlocked(false)
     setStatus('Locked')
+    try {
+      await logoutAuth()
+    } catch {
+      // still show the lock screen even if logout fails
+    }
+  }
+
+  if (!authReady) {
+    return (
+      <div className="wrap lock-wrap">
+        <section className="card lock-card">
+          <h1>Payday Calendar</h1>
+          <p className="note">Checking lock…</p>
+        </section>
+      </div>
+    )
+  }
+
+  if (setupOpen) {
+    return (
+      <LockScreen
+        mode="setup"
+        onUnlocking={value => { unlockingRef.current = value }}
+        onSetup={completeLockSetup}
+        onUnlocked={() => {
+          unlockingRef.current = false
+          setUnlocked(true)
+        }}
+      />
+    )
   }
 
   if (lockOn && !unlocked) {
@@ -261,11 +337,11 @@ export default function App() {
             {lockOn ? (
               <>
                 <button className="btn" type="button" onClick={lockNow}>Lock now</button>
-                <button className="btn ghost" type="button" disabled={lockBusy} onClick={turnOffLock}>Turn off {lockLabel()}</button>
+                <button className="btn ghost" type="button" disabled={lockBusy} onClick={turnOffLock}>Turn off lock</button>
               </>
             ) : (
-              <button className="btn" type="button" disabled={lockBusy} onClick={turnOnLock}>
-                {lockBusy ? 'Look at the phone…' : `Protect with only my ${lockLabel()}`}
+              <button className="btn" type="button" disabled={lockBusy} onClick={startLockSetup}>
+                {lockBusy ? 'Look at the phone…' : `Protect with ${lockLabel()} + passcode`}
               </button>
             )}
           </div>

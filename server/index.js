@@ -3,6 +3,14 @@ import { fileURLToPath } from 'url'
 import express from 'express'
 import { createServer as createViteServer } from 'vite'
 import { openDb, getState, saveJobs, saveMonth, saveDebts } from './db.js'
+import {
+  disableLockAuth,
+  getAuthStatus,
+  loginLock,
+  logoutLock,
+  requireAuth,
+  setupLock,
+} from './auth.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const root = path.join(__dirname, '..')
@@ -14,11 +22,45 @@ console.log(`Payday Calendar database ${dbFile}`)
 const app = express()
 app.use(express.json({ limit: '1mb' }))
 
-app.get('/api/state', (_req, res) => {
+app.get('/api/auth/status', (req, res) => {
+  res.json(getAuthStatus(db, req))
+})
+
+app.post('/api/auth/setup', (req, res) => {
+  try {
+    res.json(setupLock(db, req, res, req.body || {}))
+  } catch (err) {
+    res.status(400).json({ error: err.message || 'Could not set up lock' })
+  }
+})
+
+app.post('/api/auth/login', (req, res) => {
+  try {
+    res.json(loginLock(db, req, res, req.body || {}))
+  } catch (err) {
+    res.status(401).json({ error: err.message || 'Could not unlock' })
+  }
+})
+
+app.post('/api/auth/logout', (req, res) => {
+  res.json(logoutLock(db, req, res))
+})
+
+app.post('/api/auth/disable', (req, res) => {
+  try {
+    res.json(disableLockAuth(db, req, res, req.body || {}))
+  } catch (err) {
+    res.status(401).json({ error: err.message || 'Could not turn off lock' })
+  }
+})
+
+app.get('/api/state', (req, res) => {
+  if (!requireAuth(db, req, res)) return
   res.json(getState(db))
 })
 
 app.put('/api/jobs', (req, res) => {
+  if (!requireAuth(db, req, res)) return
   try {
     saveJobs(db, req.body?.jobs || [])
     res.json({ ok: true })
@@ -28,6 +70,7 @@ app.put('/api/jobs', (req, res) => {
 })
 
 app.put('/api/months/:ym', (req, res) => {
+  if (!requireAuth(db, req, res)) return
   try {
     saveMonth(db, req.params.ym, req.body?.days || {})
     res.json({ ok: true })
@@ -37,6 +80,7 @@ app.put('/api/months/:ym', (req, res) => {
 })
 
 app.put('/api/debts', (req, res) => {
+  if (!requireAuth(db, req, res)) return
   try {
     saveDebts(db, req.body?.debts || [])
     res.json({ ok: true })

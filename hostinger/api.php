@@ -63,7 +63,182 @@ function openDb(): PDO {
     ');
     migrateCompany($db);
     ensureDebtColumns($db);
+    ensureAuthTables($db);
     return $db;
+}
+
+const AUTH_COOKIE = 'payday_session';
+const AUTH_SESSION_HOURS = 12;
+const AUTH_PBKDF2_ROUNDS = 120000;
+
+function ensureAuthTables(PDO $db): void {
+    $db->exec('
+        CREATE TABLE IF NOT EXISTS app_lock (
+          id INTEGER PRIMARY KEY CHECK (id = 1),
+          enabled INTEGER NOT NULL DEFAULT 0,
+          pin_hash TEXT,
+          cred_id TEXT
+        );
+        CREATE TABLE IF NOT EXISTS sessions (
+          token TEXT PRIMARY KEY,
+          expires REAL NOT NULL
+        );
+    ');
+    $row = $db->query('SELECT id FROM app_lock WHERE id = 1')->fetch();
+    if (!$row) $db->exec('INSERT INTO app_lock (id, enabled) VALUES (1, 0)');
+}
+
+function cleanPin($pin): string {
+    $value = trim((string)$pin);
+    if (!preg_match('/^\d{4,12}$/', $value)) {
+        throw new InvalidArgumentException('Passcode must be 4 to 12 digits');
+    }
+    return $value;
+}
+
+function hashPin(string $pin, ?string $saltHex = null): string {
+    $salt = $saltHex !== null ? hex2bin($saltHex) : random_bytes(16);
+    if ($salt === false) throw new RuntimeException('bad salt');
+    $hash = hash_pbkdf2('sha256', $pin, $salt, AUTH_PBKDF2_ROUNDS, 32, true);
+    return 'pbkdf2:' . AUTH_PBKDF2_ROUNDS . ':' . bin2hex($salt) . ':' . bin2hex($hash);
+}
+
+function verifyPin($pin, ?string $stored): bool {
+    if ($stored === null || $stored === '' || (string)$pin === '') return false;
+    $parts = explode(':', $stored);
+    if (($parts[0] ?? '') === 'pbkdf2' && count($parts) === 4) {
+        $rounds = (int)$parts[1];
+        $salt = hex2bin($parts[2]);
+        $expected = hex2bin($parts[3]);
+        if ($salt === false || $expected === false) return false;
+        $hash = hash_pbkdf2('sha256', (string)$pin, $salt, $rounds, strlen($expected), true);
+        return hash_equals($expected, $hash);
+    }
+    return false;
+}
+
+function readSessionToken(array $cookies): string {
+    return (string)($cookies[AUTH_COOKIE] ?? '');
+}
+
+function readSession(PDO $db, array $cookies): ?string {
+    $token = readSessionToken($cookies);
+    if ($token === '') return null;
+    $now = (int)round(microtime(true) * 1000);
+    $db->prepare('DELETE FROM sessions WHERE expires < ?')->execute([$now]);
+    $stmt = $db->prepare('SELECT token FROM sessions WHERE token = ? AND expires >= ?');
+    $stmt->execute([$token, $now]);
+    $row = $stmt->fetch();
+    return $row ? (string)$row['token'] : null;
+}
+
+function createSession(PDO $db): array {
+    $token = bin2hex(random_bytes(24));
+    $expires = (int)round(microtime(true) * 1000) + AUTH_SESSION_HOURS * 3600 * 1000;
+    $db->prepare('INSERT INTO sessions (token, expires) VALUES (?, ?)')->execute([$token, $expires]);
+    return ['token' => $token, 'expires' => $expires];
+}
+
+function isHttpsRequest(): bool {
+    if (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') return true;
+    $forwarded = $_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '';
+    return strtolower((string)$forwarded) === 'https';
+}
+
+function sessionCookieHeader(string $token, int $expiresMs, bool $secure): string {
+    $maxAge = max(0, (int)floor(($expiresMs - (microtime(true) * 1000)) / 1000));
+    $parts = [
+        AUTH_COOKIE . '=' . rawurlencode($token),
+        'Path=/',
+        'HttpOnly',
+        'SameSite=Lax',
+        'Max-Age=' . $maxAge,
+    ];
+    if ($secure) $parts[] = 'Secure';
+    return implode('; ', $parts);
+}
+
+function clearCookieHeader(bool $secure): string {
+    $parts = [AUTH_COOKIE . '=', 'Path=/', 'HttpOnly', 'SameSite=Lax', 'Max-Age=0'];
+    if ($secure) $parts[] = 'Secure';
+    return implode('; ', $parts);
+}
+
+function getAuthStatus(PDO $db, array $cookies = []): array {
+    $lock = $db->query('SELECT enabled, cred_id FROM app_lock WHERE id = 1')->fetch() ?: ['enabled' => 0, 'cred_id' => null];
+    $enabled = !empty($lock['enabled']);
+    $authenticated = $enabled ? readSession($db, $cookies) !== null : true;
+    return [
+        'lockEnabled' => $enabled,
+        'authenticated' => $authenticated,
+        'hasServerCred' => !empty($lock['cred_id']),
+    ];
+}
+
+function requireAuth(PDO $db, array $cookies): ?array {
+    $status = getAuthStatus($db, $cookies);
+    if (!$status['lockEnabled'] || $status['authenticated']) return null;
+    return [401, ['error' => 'locked', 'lockEnabled' => true, 'authenticated' => false], []];
+}
+
+function setupLock(PDO $db, array $cookies, $body, bool $secure): array {
+    $lock = $db->query('SELECT enabled FROM app_lock WHERE id = 1')->fetch();
+    if (!empty($lock['enabled']) && readSession($db, $cookies) === null) {
+        throw new InvalidArgumentException('Already locked. Unlock first.');
+    }
+    $pin = cleanPin(is_array($body) ? ($body['pin'] ?? '') : '');
+    $credId = substr((string)(is_array($body) ? ($body['credId'] ?? '') : ''), 0, 255);
+    $pinHash = hashPin($pin);
+    $db->prepare('UPDATE app_lock SET enabled = 1, pin_hash = ?, cred_id = ? WHERE id = 1')
+        ->execute([$pinHash, $credId !== '' ? $credId : null]);
+    $db->exec('DELETE FROM sessions');
+    $session = createSession($db);
+    return [
+        200,
+        ['ok' => true, 'lockEnabled' => true, 'authenticated' => true],
+        [sessionCookieHeader($session['token'], $session['expires'], $secure)],
+    ];
+}
+
+function loginLock(PDO $db, $body, bool $secure): array {
+    $lock = $db->query('SELECT enabled, pin_hash, cred_id FROM app_lock WHERE id = 1')->fetch();
+    if (empty($lock['enabled'])) {
+        return [200, ['ok' => true, 'lockEnabled' => false, 'authenticated' => true], []];
+    }
+    $pin = (string)(is_array($body) ? ($body['pin'] ?? '') : '');
+    $deviceCred = (string)(is_array($body) ? ($body['credId'] ?? '') : '');
+    if (!verifyPin($pin, $lock['pin_hash'] ?? null)) {
+        throw new RuntimeException('Wrong passcode');
+    }
+    if ($deviceCred !== '' && !empty($lock['cred_id']) && $deviceCred !== $lock['cred_id']) {
+        throw new RuntimeException('This device is not enrolled');
+    }
+    $session = createSession($db);
+    return [
+        200,
+        ['ok' => true, 'lockEnabled' => true, 'authenticated' => true],
+        [sessionCookieHeader($session['token'], $session['expires'], $secure)],
+    ];
+}
+
+function logoutLock(PDO $db, array $cookies, bool $secure): array {
+    $token = readSessionToken($cookies);
+    if ($token !== '') $db->prepare('DELETE FROM sessions WHERE token = ?')->execute([$token]);
+    return [200, ['ok' => true], [clearCookieHeader($secure)]];
+}
+
+function disableLockAuth(PDO $db, $body, bool $secure): array {
+    $lock = $db->query('SELECT enabled, pin_hash FROM app_lock WHERE id = 1')->fetch();
+    if (empty($lock['enabled'])) {
+        return [200, ['ok' => true, 'lockEnabled' => false, 'authenticated' => true], [clearCookieHeader($secure)]];
+    }
+    $pin = is_array($body) ? ($body['pin'] ?? '') : '';
+    if (!verifyPin($pin, $lock['pin_hash'] ?? null)) {
+        throw new RuntimeException('Wrong passcode');
+    }
+    $db->exec('UPDATE app_lock SET enabled = 0, pin_hash = NULL, cred_id = NULL WHERE id = 1');
+    $db->exec('DELETE FROM sessions');
+    return [200, ['ok' => true, 'lockEnabled' => false, 'authenticated' => true], [clearCookieHeader($secure)]];
 }
 
 function ensureDebtColumns(PDO $db): void {
@@ -318,36 +493,66 @@ function jsonBody($value): string {
     return json_encode($value, JSON_UNESCAPED_SLASHES);
 }
 
-function handleRequest(string $method, string $route, $payload, PDO $db): array {
+function handleRequest(string $method, string $route, $payload, PDO $db, array $cookies = [], ?bool $secure = null): array {
+    $secure = $secure ?? isHttpsRequest();
     try {
-        if ($method === 'GET' && $route === 'state') return [200, getState($db)];
+        if ($method === 'GET' && $route === 'auth/status') {
+            return [200, getAuthStatus($db, $cookies), []];
+        }
+        if ($method === 'POST' && $route === 'auth/setup') {
+            return setupLock($db, $cookies, $payload, $secure);
+        }
+        if ($method === 'POST' && $route === 'auth/login') {
+            return loginLock($db, $payload, $secure);
+        }
+        if ($method === 'POST' && $route === 'auth/logout') {
+            return logoutLock($db, $cookies, $secure);
+        }
+        if ($method === 'POST' && $route === 'auth/disable') {
+            return disableLockAuth($db, $payload, $secure);
+        }
+
+        $blocked = requireAuth($db, $cookies);
+        if ($blocked !== null) return $blocked;
+
+        if ($method === 'GET' && $route === 'state') return [200, getState($db), []];
         if ($method === 'PUT' && $route === 'jobs') {
             saveJobs($db, is_array($payload) ? ($payload['jobs'] ?? []) : []);
-            return [200, ['ok' => true]];
+            return [200, ['ok' => true], []];
         }
         if ($method === 'PUT' && preg_match('#^months/(\d{4}-\d{2})$#', $route, $match)) {
             saveMonth($db, $match[1], is_array($payload) ? ($payload['days'] ?? []) : []);
-            return [200, ['ok' => true]];
+            return [200, ['ok' => true], []];
         }
         if ($method === 'PUT' && $route === 'debts') {
             saveDebts($db, is_array($payload) ? ($payload['debts'] ?? []) : []);
-            return [200, ['ok' => true]];
+            return [200, ['ok' => true], []];
         }
-        return [404, ['error' => 'not found']];
+        return [404, ['error' => 'not found'], []];
     } catch (InvalidArgumentException $err) {
-        return [400, ['error' => $err->getMessage()]];
+        return [400, ['error' => $err->getMessage()], []];
+    } catch (RuntimeException $err) {
+        $code = str_contains($err->getMessage(), 'Wrong') || str_contains($err->getMessage(), 'enrolled') ? 401 : 400;
+        return [$code, ['error' => $err->getMessage()], []];
     } catch (Throwable $err) {
-        return [400, ['error' => 'Could not save']];
+        return [400, ['error' => 'Could not save'], []];
     }
 }
 
 if (PHP_SAPI !== 'cli') {
     $route = isset($_GET['route']) ? (string)$_GET['route'] : '';
     $payload = json_decode(file_get_contents('php://input') ?: '', true);
-    [$status, $body] = handleRequest($_SERVER['REQUEST_METHOD'] ?? 'GET', $route, $payload, openDb());
+    [$status, $body, $setCookies] = handleRequest(
+        $_SERVER['REQUEST_METHOD'] ?? 'GET',
+        $route,
+        $payload,
+        openDb(),
+        $_COOKIE,
+        isHttpsRequest()
+    );
     http_response_code($status);
     header('Content-Type: application/json');
-    $flags = JSON_UNESCAPED_SLASHES;
+    foreach ($setCookies as $cookie) header('Set-Cookie: ' . $cookie, false);
     if ($status === 200 && isset($body['months']) && $body['months'] === []) $body['months'] = new stdClass();
-    echo json_encode($body, $flags);
+    echo json_encode($body, JSON_UNESCAPED_SLASHES);
 }

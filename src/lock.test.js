@@ -3,14 +3,18 @@ import assert from 'node:assert/strict'
 import {
   LOCK_CRED_KEY,
   LOCK_ON_KEY,
+  LOCK_PIN_KEY,
   UNLOCKED_KEY,
+  cleanPasscode,
   clearUnlocked,
   disableLock,
   fromBase64Url,
+  getSavedPin,
   isLockEnabled,
   isUnlocked,
   markUnlocked,
   sameCredential,
+  saveLocalLock,
   toBase64Url,
   userVerified,
 } from './lock.js'
@@ -41,6 +45,20 @@ test('lock is enabled only with a saved Face ID credential', () => {
   assert.equal(isLockEnabled(local), true)
 })
 
+test('local lock stores passcode for Face ID unlock path', () => {
+  const local = memoryStore()
+  saveLocalLock('cred', '4242', local)
+  assert.equal(isLockEnabled(local), true)
+  assert.equal(getSavedPin(local), '4242')
+  assert.equal(local.getItem(LOCK_PIN_KEY), '4242')
+})
+
+test('passcode must be 4 to 12 digits', () => {
+  assert.equal(cleanPasscode('1234'), '1234')
+  assert.throws(() => cleanPasscode('abc'), /digits/)
+  assert.throws(() => cleanPasscode('12'), /digits/)
+})
+
 test('session unlock can be set and cleared', () => {
   const session = memoryStore()
   assert.equal(isUnlocked(session), false)
@@ -50,11 +68,12 @@ test('session unlock can be set and cleared', () => {
   assert.equal(isUnlocked(session), false)
 })
 
-test('disable lock clears saved Face ID and session unlock', () => {
-  const local = memoryStore({ [LOCK_ON_KEY]: '1', [LOCK_CRED_KEY]: 'abc' })
+test('disable lock clears saved Face ID, passcode, and session unlock', () => {
+  const local = memoryStore({ [LOCK_ON_KEY]: '1', [LOCK_CRED_KEY]: 'abc', [LOCK_PIN_KEY]: '9999' })
   const session = memoryStore({ [UNLOCKED_KEY]: '1' })
   disableLock(local, session)
   assert.equal(isLockEnabled(local), false)
+  assert.equal(getSavedPin(local), '')
   assert.equal(isUnlocked(session), false)
 })
 

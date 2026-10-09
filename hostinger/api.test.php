@@ -63,5 +63,41 @@ assert($withDebt['debts'][0]['paid'] === 350.0, 'debt paid sum');
 assert($withDebt['debts'][0]['remaining'] === 850.0, 'debt remaining');
 assert($withDebt['debts'][0]['payments'][0]['note'] === 'First payment', 'payment note kept');
 
+$authDb = openDb();
+[$status, $auth] = handleRequest('GET', 'auth/status', null, $authDb, [], false);
+assert($status === 200, 'auth status');
+assert($auth['lockEnabled'] === false, 'lock off by default');
+assert($auth['authenticated'] === true, 'open when unlocked');
+
+[$status, $setup, $cookies] = handleRequest('POST', 'auth/setup', ['pin' => '1357', 'credId' => 'face'], $authDb, [], false);
+assert($status === 200, 'setup lock');
+assert($setup['lockEnabled'] === true, 'lock enabled');
+assert(count($cookies) === 1, 'setup sets cookie');
+preg_match('/payday_session=([^;]+)/', $cookies[0], $m);
+$session = rawurldecode($m[1] ?? '');
+assert($session !== '', 'session token');
+
+[$status, $blocked] = handleRequest('GET', 'state', null, openDb(), [], false);
+assert($status === 401, 'state blocked without session');
+assert(($blocked['error'] ?? '') === 'locked', 'locked error');
+
+[$status, $ok] = handleRequest('GET', 'state', null, openDb(), ['payday_session' => $session], false);
+assert($status === 200, 'state allowed with session');
+
+[$status, $badLogin] = handleRequest('POST', 'auth/login', ['pin' => '0000'], openDb(), [], false);
+assert($status === 401, 'bad pin rejected');
+
+[$status, $login, $loginCookies] = handleRequest('POST', 'auth/login', ['pin' => '1357'], openDb(), [], false);
+assert($status === 200, 'login ok');
+preg_match('/payday_session=([^;]+)/', $loginCookies[0] ?? '', $m2);
+$loginSession = rawurldecode($m2[1] ?? '');
+assert($loginSession !== '', 'login session');
+
+[$status, $disabled, $clear] = handleRequest('POST', 'auth/disable', ['pin' => '1357'], openDb(), ['payday_session' => $loginSession], false);
+assert($status === 200, 'disable ok');
+assert($disabled['lockEnabled'] === false, 'lock disabled');
+[$status, $openAgain] = handleRequest('GET', 'state', null, openDb(), [], false);
+assert($status === 200, 'open again after disable');
+
 echo "php api ok\n";
 @unlink($file);

@@ -1,5 +1,6 @@
 export const LOCK_ON_KEY = 'payday-lock-on'
 export const LOCK_CRED_KEY = 'payday-lock-cred'
+export const LOCK_PIN_KEY = 'payday-lock-pin'
 export const UNLOCKED_KEY = 'payday-unlocked'
 
 export function toBase64Url(buffer) {
@@ -43,6 +44,20 @@ export function isLockEnabled(storage = localStorage) {
   return storage.getItem(LOCK_ON_KEY) === '1' && !!storage.getItem(LOCK_CRED_KEY)
 }
 
+export function hasLocalFaceId(storage = localStorage) {
+  return isLockEnabled(storage)
+}
+
+export function getSavedPin(storage = localStorage) {
+  return storage.getItem(LOCK_PIN_KEY) || ''
+}
+
+export function saveLocalLock(credId, pin, storage = localStorage) {
+  storage.setItem(LOCK_CRED_KEY, credId)
+  storage.setItem(LOCK_ON_KEY, '1')
+  storage.setItem(LOCK_PIN_KEY, String(pin))
+}
+
 export function isUnlocked(storage = sessionStorage) {
   return storage.getItem(UNLOCKED_KEY) === '1'
 }
@@ -58,7 +73,14 @@ export function clearUnlocked(storage = sessionStorage) {
 export function disableLock(local = localStorage, session = sessionStorage) {
   local.removeItem(LOCK_ON_KEY)
   local.removeItem(LOCK_CRED_KEY)
+  local.removeItem(LOCK_PIN_KEY)
   session.removeItem(UNLOCKED_KEY)
+}
+
+export function cleanPasscode(pin) {
+  const value = String(pin || '').trim()
+  if (!/^\d{4,12}$/.test(value)) throw new Error('Passcode must be 4 to 12 digits')
+  return value
 }
 
 function rpId() {
@@ -69,8 +91,9 @@ function randomChallenge() {
   return crypto.getRandomValues(new Uint8Array(32))
 }
 
-export async function registerLock() {
+export async function registerLock(pin) {
   if (!lockSupported()) throw new Error('Face ID unlock is not available on this device or browser.')
+  const passcode = cleanPasscode(pin)
   const credential = await navigator.credentials.create({
     publicKey: {
       challenge: randomChallenge(),
@@ -99,10 +122,10 @@ export async function registerLock() {
   if (attested && !userVerified(attested)) {
     throw new Error('Face ID did not confirm it was you. Try again.')
   }
-  localStorage.setItem(LOCK_CRED_KEY, toBase64Url(credential.rawId))
-  localStorage.setItem(LOCK_ON_KEY, '1')
+  const credId = toBase64Url(credential.rawId)
+  saveLocalLock(credId, passcode)
   markUnlocked()
-  return true
+  return { credId, pin: passcode }
 }
 
 export async function unlockWithFaceId() {
@@ -129,8 +152,10 @@ export async function unlockWithFaceId() {
   if (!userVerified(assertion.response.authenticatorData)) {
     throw new Error('Face ID did not confirm it was you. Try again.')
   }
+  const pin = getSavedPin()
+  if (!pin) throw new Error('Passcode is missing on this phone. Enter it below.')
   markUnlocked()
-  return true
+  return { credId: stored, pin }
 }
 
 export function lockLabel() {
