@@ -2,7 +2,7 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import express from 'express'
 import { createServer as createViteServer } from 'vite'
-import { openDb, getState, saveJobs, saveMonth, saveDebts } from './db.js'
+import { openDb, getState, saveJobs, saveMonth, saveDebts, saveBudget } from './db.js'
 import {
   disableLockAuth,
   getAuthStatus,
@@ -83,6 +83,16 @@ app.put('/api/debts', (req, res) => {
   if (!requireAuth(db, req, res)) return
   try {
     saveDebts(db, req.body?.debts || [])
+    res.json({ ok: true })
+  } catch (err) {
+    res.status(400).json({ error: err.message || 'Could not save' })
+  }
+})
+
+app.put('/api/budget', (req, res) => {
+  if (!requireAuth(db, req, res)) return
+  try {
+    saveBudget(db, req.body?.budget || {})
     res.json({ ok: true })
   } catch (err) {
     res.status(400).json({ error: err.message || 'Could not save' })

@@ -3,6 +3,7 @@ import path from 'path'
 import { createRequire } from 'module'
 import initSqlJs from 'sql.js'
 import { P, diff } from '../src/dates.js'
+import { defaultBudgetNote } from '../src/checklist.js'
 
 const require = createRequire(import.meta.url)
 let sqlPromise
@@ -119,7 +120,26 @@ export async function openDb(file) {
   if (!db.prepare('SELECT id FROM app_lock WHERE id = 1').get()) {
     db.prepare('INSERT INTO app_lock (id, enabled) VALUES (1, 0)').run()
   }
+  ensureBudgetTables(db)
   return db
+}
+
+function ensureBudgetTables(db) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS budget_notes (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      title TEXT NOT NULL DEFAULT 'Budget Note',
+      starting REAL NOT NULL DEFAULT 2200
+    );
+    CREATE TABLE IF NOT EXISTS budget_items (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL DEFAULT '',
+      amount REAL,
+      paid INTEGER NOT NULL DEFAULT 0,
+      separate INTEGER NOT NULL DEFAULT 0,
+      position INTEGER NOT NULL DEFAULT 0
+    );
+  `)
 }
 
 function ensureDebtColumns(db) {
@@ -206,7 +226,81 @@ export function getState(db) {
   }
   const debts = db.prepare('SELECT * FROM debts ORDER BY position ASC, name ASC').all()
     .map(row => debtFromRow(row, paymentsByDebt[row.id] || []))
-  return { jobs, months, debts }
+  return { jobs, months, debts, budget: getBudget(db) }
+}
+
+function budgetItemFromRow(row) {
+  return {
+    id: row.id,
+    name: row.name || '',
+    amount: row.amount == null ? '' : money2(row.amount),
+    paid: !!row.paid,
+    separate: !!row.separate,
+  }
+}
+
+export function getBudget(db) {
+  ensureBudgetTables(db)
+  const note = db.prepare('SELECT title, starting FROM budget_notes WHERE id = 1').get()
+  const count = db.prepare('SELECT COUNT(*) AS n FROM budget_items').get()
+  if (!note || !count?.n) {
+    const seeded = defaultBudgetNote()
+    saveBudget(db, seeded)
+    return seeded
+  }
+  const items = db.prepare('SELECT * FROM budget_items ORDER BY separate ASC, position ASC, id ASC').all()
+    .map(budgetItemFromRow)
+  return {
+    title: note.title || 'Budget Note',
+    starting: money2(note.starting),
+    items,
+  }
+}
+
+function cleanBudgetItem(item, position) {
+  const raw = item?.amount
+  const amount = raw === '' || raw == null || Number.isNaN(Number(raw))
+    ? null
+    : money2(Math.max(0, Number(raw)))
+  return {
+    id: String(item?.id || '').slice(0, 40) || `item-${position}`,
+    name: String(item?.name || '').trim().slice(0, 60),
+    amount,
+    paid: item?.paid ? 1 : 0,
+    separate: item?.separate ? 1 : 0,
+    position,
+  }
+}
+
+export function saveBudget(db, budget) {
+  ensureBudgetTables(db)
+  const title = String(budget?.title || 'Budget Note').trim().slice(0, 60) || 'Budget Note'
+  const startingRaw = budget?.starting
+  const starting = startingRaw === '' || startingRaw == null || Number.isNaN(Number(startingRaw))
+    ? 2200
+    : money2(Math.max(0, Number(startingRaw)))
+  const list = Array.isArray(budget?.items) ? budget.items : []
+  const insert = db.prepare(`
+    INSERT INTO budget_items (id, name, amount, paid, separate, position)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `)
+  db.exec('BEGIN')
+  try {
+    db.exec('DELETE FROM budget_notes')
+    db.prepare('INSERT INTO budget_notes (id, title, starting) VALUES (1, ?, ?)').run(title, starting)
+    db.exec('DELETE FROM budget_items')
+    const seen = new Set()
+    list.forEach((item, i) => {
+      const row = cleanBudgetItem(item, i)
+      if (seen.has(row.id)) return
+      seen.add(row.id)
+      insert.run(row.id, row.name, row.amount, row.paid, row.separate, row.position)
+    })
+    db.exec('COMMIT')
+  } catch (err) {
+    db.exec('ROLLBACK')
+    throw err
+  }
 }
 
 function cleanJob(job, position) {

@@ -63,6 +63,29 @@ assert($withDebt['debts'][0]['paid'] === 350.0, 'debt paid sum');
 assert($withDebt['debts'][0]['remaining'] === 850.0, 'debt remaining');
 assert($withDebt['debts'][0]['payments'][0]['note'] === 'First payment', 'payment note kept');
 
+[$status, $budgetState] = handleRequest('GET', 'state', null, openDb());
+assert($status === 200, 'budget state status');
+assert($budgetState['budget']['starting'] === 2200.0, 'budget starting seeded');
+assert(count(array_filter($budgetState['budget']['items'], fn($item) => empty($item['separate']))) === 8, 'main checklist seeded');
+assert($budgetState['budget']['items'][8]['name'] === 'Prime', 'prime side item seeded');
+[$status] = handleRequest('PUT', 'budget', [
+    'budget' => [
+        'title' => 'Budget Note',
+        'starting' => 2200,
+        'items' => array_map(function ($item, $i) {
+            if ($i === 0) {
+                $item['paid'] = true;
+                $item['name'] = 'Rent';
+            }
+            return $item;
+        }, $budgetState['budget']['items'], array_keys($budgetState['budget']['items'])),
+    ],
+], openDb());
+assert($status === 200, 'save budget');
+[$status, $savedBudget] = handleRequest('GET', 'state', null, openDb());
+assert($savedBudget['budget']['items'][0]['paid'] === true, 'budget paid kept');
+assert($savedBudget['budget']['items'][0]['name'] === 'Rent', 'budget name kept');
+
 $authDb = openDb();
 [$status, $auth] = handleRequest('GET', 'auth/status', null, $authDb, [], false);
 assert($status === 200, 'auth status');

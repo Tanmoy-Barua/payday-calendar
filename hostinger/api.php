@@ -64,7 +64,125 @@ function openDb(): PDO {
     migrateCompany($db);
     ensureDebtColumns($db);
     ensureAuthTables($db);
+    ensureBudgetTables($db);
     return $db;
+}
+
+function ensureBudgetTables(PDO $db): void {
+    $db->exec('
+        CREATE TABLE IF NOT EXISTS budget_notes (
+          id INTEGER PRIMARY KEY CHECK (id = 1),
+          title TEXT NOT NULL DEFAULT \'Budget Note\',
+          starting REAL NOT NULL DEFAULT 2200
+        );
+        CREATE TABLE IF NOT EXISTS budget_items (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL DEFAULT \'\',
+          amount REAL,
+          paid INTEGER NOT NULL DEFAULT 0,
+          separate INTEGER NOT NULL DEFAULT 0,
+          position INTEGER NOT NULL DEFAULT 0
+        );
+    ');
+}
+
+function defaultBudgetNote(): array {
+    $main = [];
+    foreach ([600, 360, 100, 250, 500, 167, 60, 89] as $i => $amount) {
+        $main[] = [
+            'id' => 'pay-' . ($i + 1),
+            'name' => '',
+            'amount' => $amount,
+            'paid' => false,
+            'separate' => false,
+        ];
+    }
+    $separate = [
+        ['id' => 'sep-prime', 'name' => 'Prime', 'amount' => 50, 'paid' => false, 'separate' => true],
+        ['id' => 'sep-credit-one', 'name' => 'Credit One', 'amount' => '', 'paid' => false, 'separate' => true],
+        ['id' => 'sep-capital-one', 'name' => 'Capital One', 'amount' => '', 'paid' => false, 'separate' => true],
+        ['id' => 'sep-apple', 'name' => 'Apple Card', 'amount' => '', 'paid' => false, 'separate' => true],
+        ['id' => 'sep-chevron', 'name' => 'Chevron Card', 'amount' => '', 'paid' => false, 'separate' => true],
+        ['id' => 'sep-45', 'name' => '', 'amount' => 45, 'paid' => false, 'separate' => true],
+        ['id' => 'sep-40', 'name' => '', 'amount' => 40, 'paid' => false, 'separate' => true],
+    ];
+    return [
+        'title' => 'Budget Note',
+        'starting' => 2200,
+        'items' => array_merge($main, $separate),
+    ];
+}
+
+function cleanBudgetItem(array $item, int $position): array {
+    $raw = $item['amount'] ?? null;
+    $amount = ($raw === '' || $raw === null || !is_numeric($raw))
+        ? null
+        : money2(max(0, (float)$raw));
+    $id = substr((string)($item['id'] ?? ''), 0, 40);
+    return [
+        'id' => $id !== '' ? $id : ('item-' . $position),
+        'name' => trim(substr((string)($item['name'] ?? ''), 0, 60)),
+        'amount' => $amount,
+        'paid' => !empty($item['paid']) ? 1 : 0,
+        'separate' => !empty($item['separate']) ? 1 : 0,
+        'position' => $position,
+    ];
+}
+
+function saveBudget(PDO $db, $budget): void {
+    ensureBudgetTables($db);
+    $title = trim(substr((string)(is_array($budget) ? ($budget['title'] ?? 'Budget Note') : 'Budget Note'), 0, 60));
+    if ($title === '') $title = 'Budget Note';
+    $rawStart = is_array($budget) ? ($budget['starting'] ?? 2200) : 2200;
+    $starting = ($rawStart === '' || $rawStart === null || !is_numeric($rawStart))
+        ? 2200.0
+        : money2(max(0, (float)$rawStart));
+    $list = is_array($budget) && is_array($budget['items'] ?? null) ? $budget['items'] : [];
+    $insert = $db->prepare('INSERT INTO budget_items (id, name, amount, paid, separate, position) VALUES (?, ?, ?, ?, ?, ?)');
+    $db->beginTransaction();
+    try {
+        $db->exec('DELETE FROM budget_notes');
+        $db->prepare('INSERT INTO budget_notes (id, title, starting) VALUES (1, ?, ?)')->execute([$title, $starting]);
+        $db->exec('DELETE FROM budget_items');
+        $seen = [];
+        foreach (array_values($list) as $i => $item) {
+            if (!is_array($item)) continue;
+            $row = cleanBudgetItem($item, $i);
+            if (isset($seen[$row['id']])) continue;
+            $seen[$row['id']] = true;
+            $insert->execute([$row['id'], $row['name'], $row['amount'], $row['paid'], $row['separate'], $row['position']]);
+        }
+        $db->commit();
+    } catch (Throwable $err) {
+        if ($db->inTransaction()) $db->rollBack();
+        throw $err;
+    }
+}
+
+function getBudget(PDO $db): array {
+    ensureBudgetTables($db);
+    $note = $db->query('SELECT title, starting FROM budget_notes WHERE id = 1')->fetch();
+    $count = (int)$db->query('SELECT COUNT(*) AS n FROM budget_items')->fetch()['n'];
+    if (!$note || $count === 0) {
+        $seeded = defaultBudgetNote();
+        saveBudget($db, $seeded);
+        return $seeded;
+    }
+    $items = [];
+    foreach ($db->query('SELECT * FROM budget_items ORDER BY separate ASC, position ASC, id ASC') as $row) {
+        $items[] = [
+            'id' => $row['id'],
+            'name' => (string)($row['name'] ?? ''),
+            'amount' => $row['amount'] === null ? '' : money2((float)$row['amount']),
+            'paid' => !empty($row['paid']),
+            'separate' => !empty($row['separate']),
+        ];
+    }
+    return [
+        'title' => (string)($note['title'] ?? 'Budget Note'),
+        'starting' => money2((float)$note['starting']),
+        'items' => $items,
+    ];
 }
 
 const AUTH_COOKIE = 'payday_session';
@@ -486,7 +604,7 @@ function getState(PDO $db): array {
             'payments' => $payments,
         ];
     }
-    return ['jobs' => $jobs, 'months' => $months, 'debts' => $debts];
+    return ['jobs' => $jobs, 'months' => $months, 'debts' => $debts, 'budget' => getBudget($db)];
 }
 
 function jsonBody($value): string {
@@ -526,6 +644,10 @@ function handleRequest(string $method, string $route, $payload, PDO $db, array $
         }
         if ($method === 'PUT' && $route === 'debts') {
             saveDebts($db, is_array($payload) ? ($payload['debts'] ?? []) : []);
+            return [200, ['ok' => true], []];
+        }
+        if ($method === 'PUT' && $route === 'budget') {
+            saveBudget($db, is_array($payload) ? ($payload['budget'] ?? []) : []);
             return [200, ['ok' => true], []];
         }
         return [404, ['error' => 'not found'], []];

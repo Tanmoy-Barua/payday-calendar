@@ -5,6 +5,7 @@ import {
   loadAuthStatus,
   loadState,
   logoutAuth,
+  saveBudget,
   saveDebts,
   saveJobs,
   saveMonth,
@@ -22,13 +23,16 @@ import Calendar from './components/Calendar.jsx'
 import Side from './components/Side.jsx'
 import Spend from './components/Spend.jsx'
 import Debt from './components/Debt.jsx'
+import Checklist from './components/Checklist.jsx'
 import LockScreen from './components/LockScreen.jsx'
+import { defaultBudgetNote } from './checklist.js'
 
 const today = localToday()
 
 function pageFromHash() {
   if (location.hash === '#spend') return 'spend'
   if (location.hash === '#debt') return 'debt'
+  if (location.hash === '#checklist') return 'checklist'
   return 'calendar'
 }
 
@@ -36,6 +40,7 @@ export default function App() {
   const [jobs, setJobs] = useState([])
   const [months, setMonths] = useState({})
   const [debts, setDebts] = useState([])
+  const [budget, setBudget] = useState(() => defaultBudgetNote())
   const [view, setView] = useState(today.slice(0, 7))
   const [selected, setSelected] = useState(today)
   const [mode, setMode] = useState('day')
@@ -85,6 +90,7 @@ export default function App() {
       setJobs(data.jobs || [])
       setMonths(data.months || {})
       setDebts(data.debts || [])
+      setBudget(data.budget || defaultBudgetNote())
       setFilter(data.jobs?.[0]?.id || null)
       setStatus('Saved to the database')
       setReady(true)
@@ -112,6 +118,7 @@ export default function App() {
       setJobs([])
       setMonths({})
       setDebts([])
+      setBudget(defaultBudgetNote())
       setStatus('Locked')
       logoutAuth().catch(() => {})
     }
@@ -177,6 +184,17 @@ export default function App() {
     setStatus('Saving…')
     try {
       await saveDebts(next)
+      setStatus('Saved')
+    } catch {
+      setStatus('Could not save, try again')
+    }
+  }
+
+  async function persistBudget(next) {
+    setBudget(next)
+    setStatus('Saving…')
+    try {
+      await saveBudget(next)
       setStatus('Saved')
     } catch {
       setStatus('Could not save, try again')
@@ -276,6 +294,7 @@ export default function App() {
     setJobs([])
     setMonths({})
     setDebts([])
+    setBudget(defaultBudgetNote())
     setUnlocked(false)
     setStatus('Locked')
     try {
@@ -332,6 +351,7 @@ export default function App() {
             <a href="#calendar" aria-current={page === 'calendar' ? 'page' : undefined}>Calendar</a>
             <a href="#spend" aria-current={page === 'spend' ? 'page' : undefined}>Spending</a>
             <a href="#debt" aria-current={page === 'debt' ? 'page' : undefined}>Debt</a>
+            <a href="#checklist" aria-current={page === 'checklist' ? 'page' : undefined}>Checklist</a>
           </nav>
           <div className="lock-controls">
             {lockOn ? (
@@ -354,6 +374,7 @@ export default function App() {
       </header>
       {ready && page === 'spend' ? <Spend jobs={jobs} months={months} today={today} /> : null}
       {ready && page === 'debt' ? <Debt debts={debts} onSave={persistDebts} /> : null}
+      {ready && page === 'checklist' ? <Checklist budget={budget} onSave={persistBudget} /> : null}
       {ready && page === 'calendar' ? (
         <>
           <Cards jobs={jobs} months={months} today={today} onAddSchedule={openJobForm} />

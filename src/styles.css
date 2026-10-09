@@ -221,5 +221,23 @@ header .status{grid-column:1/-1;order:3}
 .debt-finish.done .num{color:var(--accent)}
 .field select{border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--bg);width:100%}
 .note.bad{color:var(--danger)}
+.checklist{display:grid;gap:12px}
+.checklist-hero .checklist-stats{display:grid;gap:14px;margin-top:8px}
+@media (min-width:821px){
+  .checklist-hero .checklist-stats{grid-template-columns:1.1fr 1fr 1fr;align-items:end}
+  .checklist-grid{grid-template-columns:1.2fr 1fr}
+}
+.checklist-grid{display:grid;gap:12px}
+.checklist-remain{font-family:var(--display);font-size:clamp(28px,5vw,40px);font-weight:700}
+.check-list{display:grid;gap:8px;margin:12px 0}
+.check-row{display:grid;grid-template-columns:auto 1fr 96px auto;gap:8px;align-items:center;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--bg)}
+.check-row.is-paid{opacity:0.72;background:color-mix(in srgb, var(--accent) 8%, var(--bg))}
+.check-row input[type="checkbox"]{width:20px;height:20px;accent-color:var(--accent)}
+.check-name,.check-amount{width:100%;min-height:40px;border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--surface)}
+.check-amount{font-variant-numeric:tabular-nums}
+.check-remove{min-width:36px;padding-inline:8px}
+.check-math{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.check-math li{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid var(--line)}
+.check-math li.is-paid{color:var(--accent)}
 
 [hidden]{display:none !important}

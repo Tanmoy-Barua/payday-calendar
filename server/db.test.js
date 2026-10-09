@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
-import { openDb, getState, saveJobs, saveMonth, saveDebts } from './db.js'
+import { openDb, getState, saveJobs, saveMonth, saveDebts, saveBudget } from './db.js'
 
 test('sqlite stores schedules and month entries', async () => {
   const file = path.join(os.tmpdir(), `payday-${process.pid}.sqlite`)
@@ -70,5 +70,26 @@ test('sqlite stores debts and payment notes', async () => {
 
   saveDebts(again, [])
   assert.deepEqual(getState(again).debts, [])
+  fs.rmSync(file, { force: true })
+})
+
+test('sqlite stores budget checklist paid state', async () => {
+  const file = path.join(os.tmpdir(), `payday-budget-${process.pid}.sqlite`)
+  fs.rmSync(file, { force: true })
+  const db = await openDb(file)
+  const seeded = getState(db).budget
+  assert.equal(seeded.starting, 2200)
+  assert.equal(seeded.items.filter(item => !item.separate).length, 8)
+  assert.equal(seeded.items.find(item => item.name === 'Prime')?.amount, 50)
+
+  const next = {
+    ...seeded,
+    items: seeded.items.map((item, i) => (i === 0 ? { ...item, paid: true, name: 'Rent' } : item)),
+  }
+  saveBudget(db, next)
+  const again = getState(await openDb(file)).budget
+  assert.equal(again.items[0].paid, true)
+  assert.equal(again.items[0].name, 'Rent')
+  assert.equal(again.items[0].amount, 600)
   fs.rmSync(file, { force: true })
 })

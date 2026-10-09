@@ -68,3 +68,7 @@ export function saveMonth(ym, days) {
 export function saveDebts(debts) {
   return send('/api/debts', { debts })
 }
+
+export function saveBudget(budget) {
+  return send('/api/budget', { budget })
+}
