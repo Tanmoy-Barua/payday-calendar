@@ -68,8 +68,16 @@ function openDb(): PDO {
 }
 
 const AUTH_COOKIE = 'payday_session';
-const AUTH_SESSION_HOURS = 12;
 const AUTH_PBKDF2_ROUNDS = 120000;
+const AUTH_OTP_TTL_MS = 10 * 60 * 1000;
+const AUTH_OTP_RESEND_MS = 60 * 1000;
+const AUTH_OTP_MAX_ATTEMPTS = 5;
+
+function sessionIdleMs(): int {
+    $raw = getenv('PAYDAY_SESSION_IDLE_MS');
+    if (is_string($raw) && is_numeric($raw) && (float)$raw > 0) return (int)$raw;
+    return 60 * 60 * 1000;
+}
 
 function ensureAuthTables(PDO $db): void {
     $db->exec('
@@ -83,9 +91,133 @@ function ensureAuthTables(PDO $db): void {
           token TEXT PRIMARY KEY,
           expires REAL NOT NULL
         );
+        CREATE TABLE IF NOT EXISTS otp_codes (
+          email TEXT PRIMARY KEY,
+          code_hash TEXT NOT NULL,
+          expires REAL NOT NULL,
+          attempts INTEGER NOT NULL DEFAULT 0,
+          sent_at REAL NOT NULL
+        );
     ');
     $row = $db->query('SELECT id FROM app_lock WHERE id = 1')->fetch();
     if (!$row) $db->exec('INSERT INTO app_lock (id, enabled) VALUES (1, 0)');
+}
+
+function mailConfig(): array {
+    $candidates = [];
+    $fromEnv = getenv('PAYDAY_MAIL_CONFIG');
+    if (is_string($fromEnv) && $fromEnv !== '') $candidates[] = $fromEnv;
+    $candidates[] = dirname(dbPath()) . '/mail.json';
+    $candidates[] = __DIR__ . '/data/mail.json';
+    $fileCfg = [];
+    foreach ($candidates as $file) {
+        if (!is_string($file) || $file === '' || !is_file($file)) continue;
+        $parsed = json_decode((string)file_get_contents($file), true);
+        if (is_array($parsed)) { $fileCfg = $parsed; break; }
+    }
+    $owner = strtolower(trim((string)(getenv('PAYDAY_OWNER_EMAIL') ?: ($fileCfg['ownerEmail'] ?? $fileCfg['owner_email'] ?? ''))));
+    $user = trim((string)(getenv('GMAIL_USER') ?: ($fileCfg['gmailUser'] ?? $fileCfg['gmail_user'] ?? $owner)));
+    $pass = preg_replace('/\s+/', '', (string)(getenv('GMAIL_APP_PASSWORD') ?: ($fileCfg['gmailAppPassword'] ?? $fileCfg['gmail_app_password'] ?? '')));
+    return ['ownerEmail' => $owner, 'gmailUser' => $user, 'gmailAppPassword' => $pass];
+}
+
+function otpMailConfigured(): bool {
+    $cfg = mailConfig();
+    return $cfg['ownerEmail'] !== '' && $cfg['gmailUser'] !== '' && $cfg['gmailAppPassword'] !== '';
+}
+
+function maskEmail(string $email): string {
+    $value = strtolower(trim($email));
+    $at = strpos($value, '@');
+    if ($at === false || $at < 1) return '';
+    $user = substr($value, 0, $at);
+    $domain = substr($value, $at + 1);
+    $visible = substr($user, 0, min(2, strlen($user)));
+    return $visible . str_repeat('*', max(1, strlen($user) - strlen($visible))) . '@' . $domain;
+}
+
+function hashOtp(string $code): string {
+    return hash('sha256', $code);
+}
+
+function smtpRead($socket): array {
+    $buf = '';
+    while (!feof($socket)) {
+        $line = fgets($socket, 515);
+        if ($line === false) break;
+        $buf .= $line;
+        if (preg_match('/^\d{3} /', $line)) break;
+    }
+    if (!preg_match('/^(\d{3}) /m', $buf, $m)) {
+        throw new RuntimeException('Bad SMTP response');
+    }
+    return ['code' => (int)$m[1], 'text' => $buf];
+}
+
+function smtpExpect($socket, array $ok): void {
+    $res = smtpRead($socket);
+    if (!in_array($res['code'], $ok, true)) {
+        throw new RuntimeException('SMTP ' . $res['code'] . ': ' . trim(substr($res['text'], 0, 180)));
+    }
+}
+
+function smtpCmd($socket, string $line, array $ok): void {
+    fwrite($socket, $line . "\r\n");
+    smtpExpect($socket, $ok);
+}
+
+function sendMailSmtp(string $from, string $to, string $subject, string $text, string $user, string $pass): void {
+    $host = getenv('GMAIL_SMTP_HOST') ?: 'smtp.gmail.com';
+    $port = (int)(getenv('GMAIL_SMTP_PORT') ?: 587);
+    $socket = stream_socket_client('tcp://' . $host . ':' . $port, $errno, $errstr, 30);
+    if (!$socket) throw new RuntimeException('Could not connect to Gmail SMTP');
+    stream_set_timeout($socket, 30);
+    try {
+        smtpExpect($socket, [220]);
+        smtpCmd($socket, 'EHLO payday-calendar', [250]);
+        smtpCmd($socket, 'STARTTLS', [220]);
+        if (!stream_socket_enable_crypto($socket, true, STREAM_CRYPTO_METHOD_TLS_CLIENT)) {
+            throw new RuntimeException('Could not start TLS with Gmail');
+        }
+        smtpCmd($socket, 'EHLO payday-calendar', [250]);
+        smtpCmd($socket, 'AUTH LOGIN', [334]);
+        smtpCmd($socket, base64_encode($user), [334]);
+        smtpCmd($socket, base64_encode($pass), [235]);
+        smtpCmd($socket, 'MAIL FROM:<' . $from . '>', [250]);
+        smtpCmd($socket, 'RCPT TO:<' . $to . '>', [250, 251]);
+        smtpCmd($socket, 'DATA', [354]);
+        $payload = 'From: Payday Calendar <' . $from . ">\r\n"
+            . 'To: <' . $to . ">\r\n"
+            . 'Subject: ' . $subject . "\r\n"
+            . "MIME-Version: 1.0\r\n"
+            . "Content-Type: text/plain; charset=utf-8\r\n\r\n"
+            . $text . "\r\n.";
+        fwrite($socket, $payload . "\r\n");
+        smtpExpect($socket, [250]);
+        try { smtpCmd($socket, 'QUIT', [221]); } catch (Throwable $ignore) {}
+    } finally {
+        fclose($socket);
+    }
+}
+
+function sendLoginOtp(string $code): array {
+    $cfg = mailConfig();
+    if ($cfg['ownerEmail'] === '' || $cfg['gmailUser'] === '' || $cfg['gmailAppPassword'] === '') {
+        throw new InvalidArgumentException('Gmail login is not configured');
+    }
+    $text = "Your Payday Calendar login code is:\n\n{$code}\n\nThis code expires in 10 minutes.\nIf you did not request it, ignore this email.";
+    $debug = getenv('PAYDAY_OTP_DEBUG') === '1';
+    if (!$debug) {
+        sendMailSmtp(
+            $cfg['gmailUser'],
+            $cfg['ownerEmail'],
+            $code . ' is your Payday Calendar code',
+            $text,
+            $cfg['gmailUser'],
+            $cfg['gmailAppPassword']
+        );
+    }
+    return ['ownerEmail' => $cfg['ownerEmail'], 'debug' => $debug, 'code' => $code];
 }
 
 function cleanPin($pin): string {
@@ -121,20 +253,26 @@ function readSessionToken(array $cookies): string {
     return (string)($cookies[AUTH_COOKIE] ?? '');
 }
 
-function readSession(PDO $db, array $cookies): ?string {
+function readSession(PDO $db, array $cookies, bool $touch = false): ?array {
     $token = readSessionToken($cookies);
     if ($token === '') return null;
     $now = (int)round(microtime(true) * 1000);
     $db->prepare('DELETE FROM sessions WHERE expires < ?')->execute([$now]);
-    $stmt = $db->prepare('SELECT token FROM sessions WHERE token = ? AND expires >= ?');
+    $stmt = $db->prepare('SELECT token, expires FROM sessions WHERE token = ? AND expires >= ?');
     $stmt->execute([$token, $now]);
     $row = $stmt->fetch();
-    return $row ? (string)$row['token'] : null;
+    if (!$row) return null;
+    if ($touch) {
+        $expires = $now + sessionIdleMs();
+        $db->prepare('UPDATE sessions SET expires = ? WHERE token = ?')->execute([$expires, $token]);
+        return ['token' => $token, 'expires' => $expires];
+    }
+    return ['token' => (string)$row['token'], 'expires' => (int)$row['expires']];
 }
 
 function createSession(PDO $db): array {
     $token = bin2hex(random_bytes(24));
-    $expires = (int)round(microtime(true) * 1000) + AUTH_SESSION_HOURS * 3600 * 1000;
+    $expires = (int)round(microtime(true) * 1000) + sessionIdleMs();
     $db->prepare('INSERT INTO sessions (token, expires) VALUES (?, ?)')->execute([$token, $expires]);
     return ['token' => $token, 'expires' => $expires];
 }
@@ -166,24 +304,35 @@ function clearCookieHeader(bool $secure): string {
 
 function getAuthStatus(PDO $db, array $cookies = []): array {
     $lock = $db->query('SELECT enabled, cred_id FROM app_lock WHERE id = 1')->fetch() ?: ['enabled' => 0, 'cred_id' => null];
-    $enabled = !empty($lock['enabled']);
-    $authenticated = $enabled ? readSession($db, $cookies) !== null : true;
+    $otpEnabled = otpMailConfigured();
+    $lockEnabled = !empty($lock['enabled']);
+    $loginRequired = $otpEnabled || $lockEnabled;
+    $session = $loginRequired ? readSession($db, $cookies, false) : null;
+    $cfg = mailConfig();
     return [
-        'lockEnabled' => $enabled,
-        'authenticated' => $authenticated,
+        'loginRequired' => $loginRequired,
+        'otpEnabled' => $otpEnabled,
+        'lockEnabled' => $lockEnabled,
+        'authenticated' => $loginRequired ? $session !== null : true,
         'hasServerCred' => !empty($lock['cred_id']),
+        'ownerHint' => $otpEnabled ? maskEmail($cfg['ownerEmail']) : '',
+        'idleMs' => sessionIdleMs(),
     ];
 }
 
-function requireAuth(PDO $db, array $cookies): ?array {
+function requireAuth(PDO $db, array $cookies, bool $secure): array {
     $status = getAuthStatus($db, $cookies);
-    if (!$status['lockEnabled'] || $status['authenticated']) return null;
-    return [401, ['error' => 'locked', 'lockEnabled' => true, 'authenticated' => false], []];
+    if (!$status['loginRequired']) return [null, []];
+    $session = readSession($db, $cookies, true);
+    if ($session === null) {
+        return [[401, ['error' => 'locked', 'loginRequired' => true, 'authenticated' => false], []], []];
+    }
+    return [null, [sessionCookieHeader($session['token'], $session['expires'], $secure)]];
 }
 
 function setupLock(PDO $db, array $cookies, $body, bool $secure): array {
     $lock = $db->query('SELECT enabled FROM app_lock WHERE id = 1')->fetch();
-    if (!empty($lock['enabled']) && readSession($db, $cookies) === null) {
+    if (!empty($lock['enabled']) && readSession($db, $cookies, false) === null) {
         throw new InvalidArgumentException('Already locked. Unlock first.');
     }
     $pin = cleanPin(is_array($body) ? ($body['pin'] ?? '') : '');
@@ -195,7 +344,7 @@ function setupLock(PDO $db, array $cookies, $body, bool $secure): array {
     $session = createSession($db);
     return [
         200,
-        ['ok' => true, 'lockEnabled' => true, 'authenticated' => true],
+        ['ok' => true, 'lockEnabled' => true, 'authenticated' => true, 'idleMs' => sessionIdleMs()],
         [sessionCookieHeader($session['token'], $session['expires'], $secure)],
     ];
 }
@@ -203,6 +352,7 @@ function setupLock(PDO $db, array $cookies, $body, bool $secure): array {
 function loginLock(PDO $db, $body, bool $secure): array {
     $lock = $db->query('SELECT enabled, pin_hash, cred_id FROM app_lock WHERE id = 1')->fetch();
     if (empty($lock['enabled'])) {
+        if (otpMailConfigured()) throw new RuntimeException('Use the email login code');
         return [200, ['ok' => true, 'lockEnabled' => false, 'authenticated' => true], []];
     }
     $pin = (string)(is_array($body) ? ($body['pin'] ?? '') : '');
@@ -216,7 +366,7 @@ function loginLock(PDO $db, $body, bool $secure): array {
     $session = createSession($db);
     return [
         200,
-        ['ok' => true, 'lockEnabled' => true, 'authenticated' => true],
+        ['ok' => true, 'lockEnabled' => true, 'authenticated' => true, 'idleMs' => sessionIdleMs()],
         [sessionCookieHeader($session['token'], $session['expires'], $secure)],
     ];
 }
@@ -237,8 +387,83 @@ function disableLockAuth(PDO $db, $body, bool $secure): array {
         throw new RuntimeException('Wrong passcode');
     }
     $db->exec('UPDATE app_lock SET enabled = 0, pin_hash = NULL, cred_id = NULL WHERE id = 1');
-    $db->exec('DELETE FROM sessions');
+    if (!otpMailConfigured()) $db->exec('DELETE FROM sessions');
     return [200, ['ok' => true, 'lockEnabled' => false, 'authenticated' => true], [clearCookieHeader($secure)]];
+}
+
+function requestOtp(PDO $db, $body): array {
+    $cfg = mailConfig();
+    if ($cfg['ownerEmail'] === '' || $cfg['gmailUser'] === '' || $cfg['gmailAppPassword'] === '') {
+        throw new InvalidArgumentException('Gmail login is not configured');
+    }
+    $email = strtolower(trim((string)(is_array($body) ? ($body['email'] ?? '') : '')));
+    if ($email === '' || $email !== $cfg['ownerEmail']) {
+        throw new InvalidArgumentException('That email cannot sign in');
+    }
+    $now = (int)round(microtime(true) * 1000);
+    $stmt = $db->prepare('SELECT sent_at FROM otp_codes WHERE email = ?');
+    $stmt->execute([$email]);
+    $existing = $stmt->fetch();
+    if ($existing && ($now - (int)$existing['sent_at']) < AUTH_OTP_RESEND_MS) {
+        throw new InvalidArgumentException('Wait a minute before requesting another code');
+    }
+    $code = str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+    $expires = $now + AUTH_OTP_TTL_MS;
+    $db->prepare('DELETE FROM otp_codes WHERE email = ?')->execute([$email]);
+    $db->prepare('INSERT INTO otp_codes (email, code_hash, expires, attempts, sent_at) VALUES (?, ?, ?, 0, ?)')
+        ->execute([$email, hashOtp($code), $expires, $now]);
+    $sent = sendLoginOtp($code);
+    $result = [
+        'ok' => true,
+        'sent' => true,
+        'ownerHint' => maskEmail($email),
+        'expiresInSec' => (int)floor(AUTH_OTP_TTL_MS / 1000),
+    ];
+    if (!empty($sent['debug'])) $result['debugCode'] = $code;
+    return $result;
+}
+
+function verifyOtp(PDO $db, $body, bool $secure): array {
+    $cfg = mailConfig();
+    if ($cfg['ownerEmail'] === '') throw new InvalidArgumentException('Gmail login is not configured');
+    $email = strtolower(trim((string)(is_array($body) ? ($body['email'] ?? '') : '')));
+    $code = trim((string)(is_array($body) ? ($body['code'] ?? '') : ''));
+    if ($email !== $cfg['ownerEmail']) throw new InvalidArgumentException('That email cannot sign in');
+    if (!preg_match('/^\d{6}$/', $code)) throw new InvalidArgumentException('Enter the 6-digit code');
+    $now = (int)round(microtime(true) * 1000);
+    $db->prepare('DELETE FROM otp_codes WHERE expires < ?')->execute([$now]);
+    $stmt = $db->prepare('SELECT code_hash, expires, attempts FROM otp_codes WHERE email = ?');
+    $stmt->execute([$email]);
+    $row = $stmt->fetch();
+    if (!$row || (int)$row['expires'] < $now) throw new RuntimeException('Code expired. Request a new one.');
+    if ((int)$row['attempts'] >= AUTH_OTP_MAX_ATTEMPTS) throw new RuntimeException('Too many tries. Request a new code.');
+    if (hashOtp($code) !== $row['code_hash']) {
+        $db->prepare('UPDATE otp_codes SET attempts = attempts + 1 WHERE email = ?')->execute([$email]);
+        throw new RuntimeException('Wrong code');
+    }
+    $db->prepare('DELETE FROM otp_codes WHERE email = ?')->execute([$email]);
+    $session = createSession($db);
+    return [
+        200,
+        ['ok' => true, 'authenticated' => true, 'loginRequired' => true, 'idleMs' => sessionIdleMs()],
+        [sessionCookieHeader($session['token'], $session['expires'], $secure)],
+    ];
+}
+
+function touchAuth(PDO $db, array $cookies, bool $secure): array {
+    $status = getAuthStatus($db, $cookies);
+    if (!$status['loginRequired']) {
+        return [200, ['ok' => true, 'authenticated' => true, 'idleMs' => sessionIdleMs()], []];
+    }
+    $session = readSession($db, $cookies, true);
+    if ($session === null) {
+        return [401, ['ok' => false, 'authenticated' => false, 'loginRequired' => true], []];
+    }
+    return [
+        200,
+        ['ok' => true, 'authenticated' => true, 'idleMs' => sessionIdleMs(), 'expiresAt' => $session['expires']],
+        [sessionCookieHeader($session['token'], $session['expires'], $secure)],
+    ];
 }
 
 function ensureDebtColumns(PDO $db): void {
@@ -499,6 +724,15 @@ function handleRequest(string $method, string $route, $payload, PDO $db, array $
         if ($method === 'GET' && $route === 'auth/status') {
             return [200, getAuthStatus($db, $cookies), []];
         }
+        if ($method === 'POST' && $route === 'auth/otp/request') {
+            return [200, requestOtp($db, $payload), []];
+        }
+        if ($method === 'POST' && $route === 'auth/otp/verify') {
+            return verifyOtp($db, $payload, $secure);
+        }
+        if ($method === 'POST' && $route === 'auth/touch') {
+            return touchAuth($db, $cookies, $secure);
+        }
         if ($method === 'POST' && $route === 'auth/setup') {
             return setupLock($db, $cookies, $payload, $secure);
         }
@@ -512,27 +746,31 @@ function handleRequest(string $method, string $route, $payload, PDO $db, array $
             return disableLockAuth($db, $payload, $secure);
         }
 
-        $blocked = requireAuth($db, $cookies);
+        [$blocked, $touchCookies] = requireAuth($db, $cookies, $secure);
         if ($blocked !== null) return $blocked;
 
-        if ($method === 'GET' && $route === 'state') return [200, getState($db), []];
+        if ($method === 'GET' && $route === 'state') return [200, getState($db), $touchCookies];
         if ($method === 'PUT' && $route === 'jobs') {
             saveJobs($db, is_array($payload) ? ($payload['jobs'] ?? []) : []);
-            return [200, ['ok' => true], []];
+            return [200, ['ok' => true], $touchCookies];
         }
         if ($method === 'PUT' && preg_match('#^months/(\d{4}-\d{2})$#', $route, $match)) {
             saveMonth($db, $match[1], is_array($payload) ? ($payload['days'] ?? []) : []);
-            return [200, ['ok' => true], []];
+            return [200, ['ok' => true], $touchCookies];
         }
         if ($method === 'PUT' && $route === 'debts') {
             saveDebts($db, is_array($payload) ? ($payload['debts'] ?? []) : []);
-            return [200, ['ok' => true], []];
+            return [200, ['ok' => true], $touchCookies];
         }
         return [404, ['error' => 'not found'], []];
     } catch (InvalidArgumentException $err) {
         return [400, ['error' => $err->getMessage()], []];
     } catch (RuntimeException $err) {
-        $code = str_contains($err->getMessage(), 'Wrong') || str_contains($err->getMessage(), 'enrolled') ? 401 : 400;
+        $code = str_contains($err->getMessage(), 'Wrong')
+            || str_contains($err->getMessage(), 'enrolled')
+            || str_contains($err->getMessage(), 'expired')
+            || str_contains($err->getMessage(), 'tries')
+            ? 401 : 400;
         return [$code, ['error' => $err->getMessage()], []];
     } catch (Throwable $err) {
         return [400, ['error' => 'Could not save'], []];

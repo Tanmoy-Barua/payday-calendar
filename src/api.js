@@ -28,6 +28,27 @@ export function loadAuthStatus() {
   return request('/api/auth/status')
 }
 
+export function requestOtp(email) {
+  return request('/api/auth/otp/request', {
+    method: 'POST',
+    body: JSON.stringify({ email }),
+  })
+}
+
+export function verifyOtp(email, code) {
+  return request('/api/auth/otp/verify', {
+    method: 'POST',
+    body: JSON.stringify({ email, code }),
+  })
+}
+
+export function touchAuth() {
+  return request('/api/auth/touch', {
+    method: 'POST',
+    body: '{}',
+  })
+}
+
 export function setupAuth(pin, credId) {
   return request('/api/auth/setup', {
     method: 'POST',

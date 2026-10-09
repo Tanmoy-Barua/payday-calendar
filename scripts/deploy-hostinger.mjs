@@ -26,6 +26,21 @@ function run(cmd, args, cwd) {
   if (result.status !== 0) process.exit(result.status ?? 1)
 }
 
+function packMailConfig(publishDir) {
+  const ownerEmail = (process.env.PAYDAY_OWNER_EMAIL || '').trim().toLowerCase()
+  const gmailUser = (process.env.GMAIL_USER || ownerEmail).trim()
+  const gmailAppPassword = (process.env.GMAIL_APP_PASSWORD || '').replace(/\s+/g, '')
+  if (!ownerEmail || !gmailUser || !gmailAppPassword) return false
+  const mail = {
+    ownerEmail,
+    gmailUser,
+    gmailAppPassword,
+  }
+  fs.writeFileSync(path.join(publishDir, 'data', 'mail.json'), JSON.stringify(mail))
+  console.log('Packed Gmail login config for', ownerEmail.replace(/(.{2}).+(@.+)/, '$1***$2'))
+  return true
+}
+
 function packSite() {
   run('npm', ['run', 'build'], root)
   const publish = fs.mkdtempSync(path.join(os.tmpdir(), 'paycheck-'))
@@ -34,6 +49,7 @@ function packSite() {
   fs.copyFileSync(path.join(root, 'hostinger', '.htaccess'), path.join(publish, '.htaccess'))
   fs.mkdirSync(path.join(publish, 'data'), { recursive: true })
   fs.copyFileSync(path.join(root, 'hostinger', 'data', '.htaccess'), path.join(publish, 'data', '.htaccess'))
+  packMailConfig(publish)
   const zip = path.join(os.tmpdir(), archiveName)
   run('python3', ['-c', `
 import os, zipfile, sys

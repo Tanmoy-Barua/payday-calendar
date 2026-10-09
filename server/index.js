@@ -8,8 +8,11 @@ import {
   getAuthStatus,
   loginLock,
   logoutLock,
+  requestOtp,
   requireAuth,
   setupLock,
+  touchAuth,
+  verifyOtp,
 } from './auth.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -24,6 +27,28 @@ app.use(express.json({ limit: '1mb' }))
 
 app.get('/api/auth/status', (req, res) => {
   res.json(getAuthStatus(db, req))
+})
+
+app.post('/api/auth/otp/request', async (req, res) => {
+  try {
+    res.json(await requestOtp(db, req.body || {}))
+  } catch (err) {
+    res.status(400).json({ error: err.message || 'Could not send code' })
+  }
+})
+
+app.post('/api/auth/otp/verify', (req, res) => {
+  try {
+    res.json(verifyOtp(db, req, res, req.body || {}))
+  } catch (err) {
+    const code = /Wrong|expired|tries/i.test(err.message || '') ? 401 : 400
+    res.status(code).json({ error: err.message || 'Could not verify code' })
+  }
+})
+
+app.post('/api/auth/touch', (req, res) => {
+  const result = touchAuth(db, req, res)
+  res.status(result.ok ? 200 : 401).json(result)
 })
 
 app.post('/api/auth/setup', (req, res) => {
