@@ -129,7 +129,10 @@ function ensureBudgetTables(db) {
     CREATE TABLE IF NOT EXISTS budget_notes (
       id INTEGER PRIMARY KEY CHECK (id = 1),
       title TEXT NOT NULL DEFAULT 'Budget Note',
-      starting REAL NOT NULL DEFAULT 2200
+      starting REAL NOT NULL DEFAULT 2200,
+      paycheck_date TEXT NOT NULL DEFAULT '',
+      paycheck_label TEXT NOT NULL DEFAULT '',
+      job_id TEXT NOT NULL DEFAULT ''
     );
     CREATE TABLE IF NOT EXISTS budget_items (
       id TEXT PRIMARY KEY,
@@ -139,7 +142,22 @@ function ensureBudgetTables(db) {
       separate INTEGER NOT NULL DEFAULT 0,
       position INTEGER NOT NULL DEFAULT 0
     );
+    CREATE TABLE IF NOT EXISTS budget_history (
+      id TEXT PRIMARY KEY,
+      paycheck_date TEXT NOT NULL DEFAULT '',
+      paycheck_label TEXT NOT NULL DEFAULT '',
+      job_id TEXT NOT NULL DEFAULT '',
+      starting REAL NOT NULL,
+      remaining REAL NOT NULL,
+      closed_at TEXT NOT NULL,
+      items_json TEXT NOT NULL,
+      paid_json TEXT NOT NULL DEFAULT '[]'
+    );
   `)
+  const cols = db.prepare('PRAGMA table_info(budget_notes)').all().map(row => row.name)
+  if (!cols.includes('paycheck_date')) db.exec(`ALTER TABLE budget_notes ADD COLUMN paycheck_date TEXT NOT NULL DEFAULT ''`)
+  if (!cols.includes('paycheck_label')) db.exec(`ALTER TABLE budget_notes ADD COLUMN paycheck_label TEXT NOT NULL DEFAULT ''`)
+  if (!cols.includes('job_id')) db.exec(`ALTER TABLE budget_notes ADD COLUMN job_id TEXT NOT NULL DEFAULT ''`)
 }
 
 function ensureDebtColumns(db) {
@@ -239,9 +257,27 @@ function budgetItemFromRow(row) {
   }
 }
 
+function historyFromRow(row) {
+  let items = []
+  let paid = []
+  try { items = JSON.parse(row.items_json || '[]') } catch { items = [] }
+  try { paid = JSON.parse(row.paid_json || '[]') } catch { paid = [] }
+  return {
+    id: row.id,
+    paycheckDate: row.paycheck_date || '',
+    paycheckLabel: row.paycheck_label || '',
+    jobId: row.job_id || '',
+    starting: money2(row.starting),
+    remaining: money2(row.remaining),
+    closedAt: row.closed_at || '',
+    items: Array.isArray(items) ? items : [],
+    paid: Array.isArray(paid) ? paid : [],
+  }
+}
+
 export function getBudget(db) {
   ensureBudgetTables(db)
-  const note = db.prepare('SELECT title, starting FROM budget_notes WHERE id = 1').get()
+  const note = db.prepare('SELECT * FROM budget_notes WHERE id = 1').get()
   const count = db.prepare('SELECT COUNT(*) AS n FROM budget_items').get()
   if (!note || !count?.n) {
     const seeded = defaultBudgetNote()
@@ -250,10 +286,16 @@ export function getBudget(db) {
   }
   const items = db.prepare('SELECT * FROM budget_items ORDER BY separate ASC, position ASC, id ASC').all()
     .map(budgetItemFromRow)
+  const history = db.prepare('SELECT * FROM budget_history ORDER BY closed_at DESC, id DESC').all()
+    .map(historyFromRow)
   return {
     title: note.title || 'Budget Note',
     starting: money2(note.starting),
+    paycheckDate: note.paycheck_date || '',
+    paycheckLabel: note.paycheck_label || '',
+    jobId: note.job_id || '',
     items,
+    history,
   }
 }
 
@@ -272,6 +314,27 @@ function cleanBudgetItem(item, position) {
   }
 }
 
+function cleanHistoryEntry(entry) {
+  const id = String(entry?.id || '').slice(0, 40) || newItemIdSafe()
+  const closedAt = /^\d{4}-\d{2}-\d{2}$/.test(entry?.closedAt || '') ? entry.closedAt : '2026-10-01'
+  const paycheckDate = /^\d{4}-\d{2}-\d{2}$/.test(entry?.paycheckDate || '') ? entry.paycheckDate : closedAt
+  return {
+    id,
+    paycheckDate,
+    paycheckLabel: String(entry?.paycheckLabel || 'Paycheck').trim().slice(0, 120) || 'Paycheck',
+    jobId: String(entry?.jobId || '').slice(0, 40),
+    starting: money2(Math.max(0, Number(entry?.starting) || 0)),
+    remaining: money2(Number(entry?.remaining) || 0),
+    closedAt,
+    itemsJson: JSON.stringify(Array.isArray(entry?.items) ? entry.items : []),
+    paidJson: JSON.stringify(Array.isArray(entry?.paid) ? entry.paid : []),
+  }
+}
+
+function newItemIdSafe() {
+  return `hist-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`
+}
+
 export function saveBudget(db, budget) {
   ensureBudgetTables(db)
   const title = String(budget?.title || 'Budget Note').trim().slice(0, 60) || 'Budget Note'
@@ -279,15 +342,27 @@ export function saveBudget(db, budget) {
   const starting = startingRaw === '' || startingRaw == null || Number.isNaN(Number(startingRaw))
     ? 2200
     : money2(Math.max(0, Number(startingRaw)))
+  const paycheckDate = /^\d{4}-\d{2}-\d{2}$/.test(budget?.paycheckDate || '') ? budget.paycheckDate : ''
+  const paycheckLabel = String(budget?.paycheckLabel || '').trim().slice(0, 120)
+  const jobId = String(budget?.jobId || '').slice(0, 40)
   const list = Array.isArray(budget?.items) ? budget.items : []
+  const history = Array.isArray(budget?.history) ? budget.history : []
   const insert = db.prepare(`
     INSERT INTO budget_items (id, name, amount, paid, separate, position)
     VALUES (?, ?, ?, ?, ?, ?)
   `)
+  const insertHistory = db.prepare(`
+    INSERT INTO budget_history
+      (id, paycheck_date, paycheck_label, job_id, starting, remaining, closed_at, items_json, paid_json)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `)
   db.exec('BEGIN')
   try {
     db.exec('DELETE FROM budget_notes')
-    db.prepare('INSERT INTO budget_notes (id, title, starting) VALUES (1, ?, ?)').run(title, starting)
+    db.prepare(`
+      INSERT INTO budget_notes (id, title, starting, paycheck_date, paycheck_label, job_id)
+      VALUES (1, ?, ?, ?, ?, ?)
+    `).run(title, starting, paycheckDate, paycheckLabel, jobId)
     db.exec('DELETE FROM budget_items')
     const seen = new Set()
     list.forEach((item, i) => {
@@ -295,6 +370,24 @@ export function saveBudget(db, budget) {
       if (seen.has(row.id)) return
       seen.add(row.id)
       insert.run(row.id, row.name, row.amount, row.paid, row.separate, row.position)
+    })
+    db.exec('DELETE FROM budget_history')
+    const seenHist = new Set()
+    history.forEach(entry => {
+      const row = cleanHistoryEntry(entry)
+      if (seenHist.has(row.id)) return
+      seenHist.add(row.id)
+      insertHistory.run(
+        row.id,
+        row.paycheckDate,
+        row.paycheckLabel,
+        row.jobId,
+        row.starting,
+        row.remaining,
+        row.closedAt,
+        row.itemsJson,
+        row.paidJson,
+      )
     })
     db.exec('COMMIT')
   } catch (err) {

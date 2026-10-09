@@ -374,7 +374,7 @@ export default function App() {
       </header>
       {ready && page === 'spend' ? <Spend jobs={jobs} months={months} today={today} /> : null}
       {ready && page === 'debt' ? <Debt debts={debts} onSave={persistDebts} /> : null}
-      {ready && page === 'checklist' ? <Checklist budget={budget} onSave={persistBudget} /> : null}
+      {ready && page === 'checklist' ? <Checklist budget={budget} onSave={persistBudget} jobs={jobs} months={months} today={today} /> : null}
       {ready && page === 'calendar' ? (
         <>
           <Cards jobs={jobs} months={months} today={today} onAddSchedule={openJobForm} />

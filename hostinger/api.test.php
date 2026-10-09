@@ -72,6 +72,9 @@ assert($budgetState['budget']['items'][8]['name'] === 'Prime', 'prime side item 
     'budget' => [
         'title' => 'Budget Note',
         'starting' => 2200,
+        'paycheckDate' => '2026-10-15',
+        'paycheckLabel' => 'APS-SECURITY COMPANY · Thursday, October 15, 2026',
+        'jobId' => 'company',
         'items' => array_map(function ($item, $i) {
             if ($i === 0) {
                 $item['paid'] = true;
@@ -79,12 +82,26 @@ assert($budgetState['budget']['items'][8]['name'] === 'Prime', 'prime side item 
             }
             return $item;
         }, $budgetState['budget']['items'], array_keys($budgetState['budget']['items'])),
+        'history' => [[
+            'id' => 'hist-1',
+            'paycheckDate' => '2026-10-01',
+            'paycheckLabel' => 'APS-SECURITY COMPANY · Thursday, October 1, 2026',
+            'jobId' => 'company',
+            'starting' => 2200,
+            'remaining' => 74,
+            'closedAt' => '2026-10-08',
+            'items' => $budgetState['budget']['items'],
+            'paid' => [['id' => 'pay-1', 'name' => 'Rent', 'amount' => 600, 'separate' => false]],
+        ]],
     ],
 ], openDb());
 assert($status === 200, 'save budget');
 [$status, $savedBudget] = handleRequest('GET', 'state', null, openDb());
 assert($savedBudget['budget']['items'][0]['paid'] === true, 'budget paid kept');
 assert($savedBudget['budget']['items'][0]['name'] === 'Rent', 'budget name kept');
+assert($savedBudget['budget']['paycheckDate'] === '2026-10-15', 'paycheck date kept');
+assert(count($savedBudget['budget']['history']) === 1, 'history kept');
+assert($savedBudget['budget']['history'][0]['paid'][0]['amount'] === 600, 'history paid amount kept');
 
 $authDb = openDb();
 [$status, $auth] = handleRequest('GET', 'auth/status', null, $authDb, [], false);
