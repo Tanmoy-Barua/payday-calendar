@@ -3,7 +3,15 @@ import { P, add, fmtLong, fmtMonth, hrs, money, moneyShort, ymd } from '../dates
 import { payOnOrAfter, periodFor } from '../pay.js'
 import { entriesOn } from '../calc.js'
 
-const DOWS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+const DOWS = [
+  { full: 'Sun', short: 'S' },
+  { full: 'Mon', short: 'M' },
+  { full: 'Tue', short: 'T' },
+  { full: 'Wed', short: 'W' },
+  { full: 'Thu', short: 'T' },
+  { full: 'Fri', short: 'F' },
+  { full: 'Sat', short: 'S' },
+]
 
 export default function Calendar({ jobs, months, view, selected, filter, today, onSelectDay, onShiftMonth, onToday, onFilter }) {
   const touch = useRef(null)
@@ -42,7 +50,12 @@ export default function Calendar({ jobs, months, view, selected, filter, today, 
         </div>
       </div>
       <div className="grid">
-        {DOWS.map(d => <div className="dow" key={d}>{d}</div>)}
+        {DOWS.map(d => (
+          <div className="dow" key={d.full} title={d.full}>
+            <span className="dow-full">{d.full}</span>
+            <span className="dow-short">{d.short}</span>
+          </div>
+        ))}
       </div>
       <div
         className="grid"

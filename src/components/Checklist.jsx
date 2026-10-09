@@ -192,7 +192,7 @@ export default function Checklist({ budget, onSave, jobs = [], months = {}, toda
               {!paychecks.length ? <option value="">Add a pay schedule first</option> : null}
               {paychecks.map(row => (
                 <option key={row.jobId} value={row.jobId}>
-                  {row.jobName} · {fmtTodayLine(row.payday)} · {money(row.amount)}
+                  {row.jobName} · {fmtShort(row.payday)} · {money(row.amount)}
                 </option>
               ))}
             </select>
