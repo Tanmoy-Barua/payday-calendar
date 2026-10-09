@@ -41,7 +41,8 @@ function ShareList({ amount }) {
 }
 
 export default function Spend({ jobs, months, today }) {
-  const [income, setIncome] = useState(readIncome)
+  const [incomeText, setIncomeText] = useState(() => String(readIncome()))
+  const income = incomeText === '' ? 0 : Math.max(0, Number(incomeText) || 0)
 
   useEffect(() => {
     localStorage.setItem(INCOME_KEY, String(income))
@@ -70,8 +71,16 @@ export default function Spend({ jobs, months, today }) {
             min="0"
             step="0.01"
             inputMode="decimal"
-            value={income}
-            onChange={ev => setIncome(Math.max(0, Number(ev.target.value) || 0))}
+            value={incomeText}
+            onChange={ev => {
+              const next = ev.target.value
+              if (next === '') {
+                setIncomeText('')
+                return
+              }
+              if (Number(next) < 0) return
+              setIncomeText(next)
+            }}
           />
         </label>
         <div className="big num">{money(income)}</div>
