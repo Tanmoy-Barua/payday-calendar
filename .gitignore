@@ -3,5 +3,7 @@ dist
 data/*.sqlite
 data/*.sqlite-wal
 data/*.sqlite-shm
+data/mail.json
+hostinger/data/mail.json
 .env
 .env.*

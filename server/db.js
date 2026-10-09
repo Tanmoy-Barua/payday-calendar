@@ -119,6 +119,16 @@ export async function openDb(file) {
   if (!db.prepare('SELECT id FROM app_lock WHERE id = 1').get()) {
     db.prepare('INSERT INTO app_lock (id, enabled) VALUES (1, 0)').run()
   }
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS otp_codes (
+      email TEXT PRIMARY KEY,
+      code_hash TEXT NOT NULL,
+      expires REAL NOT NULL,
+      attempts INTEGER NOT NULL DEFAULT 0,
+      sent_at REAL NOT NULL
+    );
+  `)
+  db.__file = file
   return db
 }
 

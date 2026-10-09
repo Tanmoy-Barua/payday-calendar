@@ -10,8 +10,10 @@ import {
   getAuthStatus,
   loginLock,
   logoutLock,
+  requestOtp,
   requireAuth,
   setupLock,
+  verifyOtp,
 } from './auth.js'
 
 function mockRes() {
@@ -62,6 +64,7 @@ test('server lock blocks state until login, then allows it', async () => {
 
   const locked = getAuthStatus(db, reqWithCookie())
   assert.equal(locked.lockEnabled, true)
+  assert.equal(locked.loginRequired, true)
   assert.equal(locked.authenticated, false)
 
   const blocked = mockRes()
@@ -92,6 +95,48 @@ test('server lock blocks state until login, then allows it', async () => {
   assert.equal(getAuthStatus(db, reqWithCookie()).lockEnabled, false)
 
   fs.rmSync(file, { force: true })
+})
+
+test('gmail otp login creates a one-hour idle session', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'payday-otp-'))
+  const file = path.join(dir, 'payday.sqlite')
+  const mailFile = path.join(dir, 'mail.json')
+  fs.writeFileSync(mailFile, JSON.stringify({
+    ownerEmail: 'owner@gmail.com',
+    gmailUser: 'owner@gmail.com',
+    gmailAppPassword: 'test-app-password',
+  }))
+  process.env.PAYDAY_OTP_DEBUG = '1'
+  process.env.PAYDAY_SESSION_IDLE_MS = '3600000'
+  const db = await openDb(file)
+  assert.equal(getAuthStatus(db, reqWithCookie()).otpEnabled, true)
+  assert.equal(getAuthStatus(db, reqWithCookie()).loginRequired, true)
+  assert.equal(getAuthStatus(db, reqWithCookie()).authenticated, false)
+
+  await assert.rejects(() => requestOtp(db, { email: 'other@gmail.com' }, { send: async () => {} }), /cannot sign in/)
+
+  const sent = await requestOtp(db, { email: 'owner@gmail.com' }, { send: async () => {} })
+  assert.equal(sent.sent, true)
+  assert.ok(sent.debugCode)
+  assert.match(sent.ownerHint, /@gmail\.com/)
+
+  assert.throws(() => verifyOtp(db, reqWithCookie(), mockRes(), { email: 'owner@gmail.com', code: '000000' }), /Wrong code/)
+
+  const verifyRes = mockRes()
+  const ok = verifyOtp(db, reqWithCookie(), verifyRes, { email: 'owner@gmail.com', code: sent.debugCode })
+  assert.equal(ok.authenticated, true)
+  assert.equal(ok.idleMs, 3600000)
+  const token = cookieFrom(verifyRes)
+  assert.ok(token)
+  assert.equal(getAuthStatus(db, reqWithCookie(`payday_session=${token}`)).authenticated, true)
+
+  const touchRes = mockRes()
+  assert.equal(requireAuth(db, reqWithCookie(`payday_session=${token}`), touchRes), true)
+  assert.ok(cookieFrom(touchRes))
+
+  delete process.env.PAYDAY_OTP_DEBUG
+  delete process.env.PAYDAY_SESSION_IDLE_MS
+  fs.rmSync(dir, { recursive: true, force: true })
 })
 
 test('setup is refused when lock is already on without a session', async () => {

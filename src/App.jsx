@@ -9,6 +9,7 @@ import {
   saveJobs,
   saveMonth,
   setupAuth,
+  touchAuth,
 } from './api.js'
 import {
   clearUnlocked,
@@ -23,8 +24,10 @@ import Side from './components/Side.jsx'
 import Spend from './components/Spend.jsx'
 import Debt from './components/Debt.jsx'
 import LockScreen from './components/LockScreen.jsx'
+import LoginScreen from './components/LoginScreen.jsx'
 
 const today = localToday()
+const DEFAULT_IDLE_MS = 60 * 60 * 1000
 
 function pageFromHash() {
   if (location.hash === '#spend') return 'spend'
@@ -48,11 +51,27 @@ export default function App() {
   const [ready, setReady] = useState(false)
   const [page, setPage] = useState(pageFromHash)
   const [authReady, setAuthReady] = useState(false)
+  const [loginRequired, setLoginRequired] = useState(false)
+  const [otpEnabled, setOtpEnabled] = useState(false)
+  const [ownerHint, setOwnerHint] = useState('')
+  const [idleMs, setIdleMs] = useState(DEFAULT_IDLE_MS)
   const [lockOn, setLockOn] = useState(false)
   const [unlocked, setUnlocked] = useState(false)
   const [setupOpen, setSetupOpen] = useState(false)
   const [lockBusy, setLockBusy] = useState(false)
   const unlockingRef = useRef(false)
+  const idleTimerRef = useRef(null)
+  const lastTouchRef = useRef(0)
+
+  function clearPrivateData(message = 'Logged out') {
+    clearUnlocked()
+    setUnlocked(false)
+    setReady(false)
+    setJobs([])
+    setMonths({})
+    setDebts([])
+    setStatus(message)
+  }
 
   useEffect(() => {
     const sync = () => setPage(pageFromHash())
@@ -64,11 +83,18 @@ export default function App() {
     let cancel = false
     loadAuthStatus().then(auth => {
       if (cancel) return
+      const required = !!(auth.loginRequired ?? auth.lockEnabled)
+      setLoginRequired(required)
+      setOtpEnabled(!!auth.otpEnabled)
+      setOwnerHint(auth.ownerHint || '')
+      setIdleMs(Number(auth.idleMs) > 0 ? Number(auth.idleMs) : DEFAULT_IDLE_MS)
       setLockOn(!!auth.lockEnabled)
-      setUnlocked(!auth.lockEnabled || !!auth.authenticated)
+      setUnlocked(!required || !!auth.authenticated)
       setAuthReady(true)
     }).catch(() => {
       if (cancel) return
+      setLoginRequired(false)
+      setOtpEnabled(false)
       setLockOn(false)
       setUnlocked(true)
       setAuthReady(true)
@@ -91,10 +117,8 @@ export default function App() {
     }).catch(err => {
       if (cancel) return
       if (err?.status === 401 || err?.data?.error === 'locked') {
-        setLockOn(true)
-        setUnlocked(false)
-        setReady(false)
-        setStatus('Locked')
+        setLoginRequired(true)
+        clearPrivateData('Session ended')
         return
       }
       setStatus('Could not load the database')
@@ -103,28 +127,33 @@ export default function App() {
   }, [authReady, unlocked])
 
   useEffect(() => {
-    if (!lockOn) return undefined
-    function hidePrivateData() {
+    if (!loginRequired || !unlocked) return undefined
+
+    function logoutIdle() {
       if (unlockingRef.current) return
-      clearUnlocked()
-      setUnlocked(false)
-      setReady(false)
-      setJobs([])
-      setMonths({})
-      setDebts([])
-      setStatus('Locked')
+      clearPrivateData('Logged out after 1 hour idle')
       logoutAuth().catch(() => {})
     }
-    function onVisibility() {
-      if (document.visibilityState === 'hidden') hidePrivateData()
+
+    function bumpIdle() {
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current)
+      idleTimerRef.current = setTimeout(logoutIdle, idleMs)
+      const now = Date.now()
+      if (now - lastTouchRef.current < 60_000) return
+      lastTouchRef.current = now
+      touchAuth().catch(err => {
+        if (err?.status === 401) logoutIdle()
+      })
     }
-    document.addEventListener('visibilitychange', onVisibility)
-    window.addEventListener('pagehide', hidePrivateData)
+
+    const events = ['pointerdown', 'keydown', 'scroll', 'touchstart', 'mousemove']
+    events.forEach(name => window.addEventListener(name, bumpIdle, { passive: true }))
+    bumpIdle()
     return () => {
-      document.removeEventListener('visibilitychange', onVisibility)
-      window.removeEventListener('pagehide', hidePrivateData)
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current)
+      events.forEach(name => window.removeEventListener(name, bumpIdle))
     }
-  }, [lockOn])
+  }, [loginRequired, unlocked, idleMs])
 
   useEffect(() => {
     if (!flash) return undefined
@@ -244,6 +273,7 @@ export default function App() {
       const { credId, pin: passcode } = await registerLock(pin)
       await setupAuth(passcode, credId)
       setLockOn(true)
+      setLoginRequired(true)
       setUnlocked(true)
       setSetupOpen(false)
       setStatus(`Locked on the server. Only your ${lockLabel()} or passcode can open it.`)
@@ -261,8 +291,11 @@ export default function App() {
       await disableAuth(pin.trim())
       disableLock()
       setLockOn(false)
-      setUnlocked(true)
-      setStatus('Server lock is off')
+      if (!otpEnabled) {
+        setLoginRequired(false)
+        setUnlocked(true)
+      }
+      setStatus('Passcode lock is off')
     } catch (err) {
       setStatus(err?.message || 'Could not turn off lock')
     } finally {
@@ -270,18 +303,12 @@ export default function App() {
     }
   }
 
-  async function lockNow() {
-    clearUnlocked()
-    setReady(false)
-    setJobs([])
-    setMonths({})
-    setDebts([])
-    setUnlocked(false)
-    setStatus('Locked')
+  async function logOut() {
+    clearPrivateData('Logged out')
     try {
       await logoutAuth()
     } catch {
-      // still show the lock screen even if logout fails
+      // still show the login screen
     }
   }
 
@@ -290,7 +317,7 @@ export default function App() {
       <div className="wrap lock-wrap">
         <section className="card lock-card">
           <h1>Payday Calendar</h1>
-          <p className="note">Checking lock…</p>
+          <p className="note">Checking login…</p>
         </section>
       </div>
     )
@@ -310,7 +337,18 @@ export default function App() {
     )
   }
 
-  if (lockOn && !unlocked) {
+  if (loginRequired && !unlocked) {
+    if (otpEnabled) {
+      return (
+        <LoginScreen
+          ownerHint={ownerHint}
+          onLoggedIn={() => {
+            unlockingRef.current = false
+            setUnlocked(true)
+          }}
+        />
+      )
+    }
     return (
       <LockScreen
         onUnlocking={value => { unlockingRef.current = value }}
@@ -334,14 +372,14 @@ export default function App() {
             <a href="#debt" aria-current={page === 'debt' ? 'page' : undefined}>Debt</a>
           </nav>
           <div className="lock-controls">
+            {loginRequired ? (
+              <button className="btn" type="button" onClick={logOut}>Log out</button>
+            ) : null}
             {lockOn ? (
-              <>
-                <button className="btn" type="button" onClick={lockNow}>Lock now</button>
-                <button className="btn ghost" type="button" disabled={lockBusy} onClick={turnOffLock}>Turn off lock</button>
-              </>
+              <button className="btn ghost" type="button" disabled={lockBusy} onClick={turnOffLock}>Turn off Face ID lock</button>
             ) : (
-              <button className="btn" type="button" disabled={lockBusy} onClick={startLockSetup}>
-                {lockBusy ? 'Look at the phone…' : `Protect with ${lockLabel()} + passcode`}
+              <button className="btn ghost" type="button" disabled={lockBusy} onClick={startLockSetup}>
+                {lockBusy ? 'Look at the phone…' : `Add ${lockLabel()} on this phone`}
               </button>
             )}
           </div>

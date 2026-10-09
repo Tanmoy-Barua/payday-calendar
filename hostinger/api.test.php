@@ -67,6 +67,7 @@ $authDb = openDb();
 [$status, $auth] = handleRequest('GET', 'auth/status', null, $authDb, [], false);
 assert($status === 200, 'auth status');
 assert($auth['lockEnabled'] === false, 'lock off by default');
+assert(($auth['loginRequired'] ?? false) === false, 'login not required by default');
 assert($auth['authenticated'] === true, 'open when unlocked');
 
 [$status, $setup, $cookies] = handleRequest('POST', 'auth/setup', ['pin' => '1357', 'credId' => 'face'], $authDb, [], false);
@@ -98,6 +99,38 @@ assert($status === 200, 'disable ok');
 assert($disabled['lockEnabled'] === false, 'lock disabled');
 [$status, $openAgain] = handleRequest('GET', 'state', null, openDb(), [], false);
 assert($status === 200, 'open again after disable');
+
+$mailFile = sys_get_temp_dir() . '/payday-mail-' . getmypid() . '.json';
+file_put_contents($mailFile, json_encode([
+    'ownerEmail' => 'owner@gmail.com',
+    'gmailUser' => 'owner@gmail.com',
+    'gmailAppPassword' => 'test-app-password',
+]));
+putenv('PAYDAY_MAIL_CONFIG=' . $mailFile);
+putenv('PAYDAY_OTP_DEBUG=1');
+putenv('PAYDAY_SESSION_IDLE_MS=3600000');
+$otpDb = openDb();
+[$status, $otpStatus] = handleRequest('GET', 'auth/status', null, $otpDb, [], false);
+assert($otpStatus['otpEnabled'] === true, 'otp enabled with mail config');
+assert($otpStatus['loginRequired'] === true, 'login required with otp');
+assert($otpStatus['authenticated'] === false, 'not authenticated yet');
+[$status, $sent] = handleRequest('POST', 'auth/otp/request', ['email' => 'owner@gmail.com'], $otpDb, [], false);
+assert($status === 200, 'otp request ok');
+assert(isset($sent['debugCode']), 'debug otp present');
+[$status, $verified, $otpCookies] = handleRequest('POST', 'auth/otp/verify', [
+    'email' => 'owner@gmail.com',
+    'code' => $sent['debugCode'],
+], openDb(), [], false);
+assert($status === 200, 'otp verify ok');
+preg_match('/payday_session=([^;]+)/', $otpCookies[0] ?? '', $m3);
+$otpSession = rawurldecode($m3[1] ?? '');
+assert($otpSession !== '', 'otp session');
+[$status] = handleRequest('GET', 'state', null, openDb(), ['payday_session' => $otpSession], false);
+assert($status === 200, 'otp session can load state');
+putenv('PAYDAY_MAIL_CONFIG');
+putenv('PAYDAY_OTP_DEBUG');
+putenv('PAYDAY_SESSION_IDLE_MS');
+@unlink($mailFile);
 
 echo "php api ok\n";
 @unlink($file);

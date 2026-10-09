@@ -189,7 +189,8 @@ header .status{grid-column:1/-1;order:3}
 .lock-card .btn{width:100%;min-height:48px}
 .lock-form{display:grid;gap:12px;text-align:left}
 .lock-form .field{display:grid;gap:6px}
-.lock-form input{width:100%;min-height:44px;letter-spacing:0.2em;font-size:18px}
+.lock-form input{width:100%;min-height:44px;font-size:16px}
+.lock-form input[inputmode="numeric"]{letter-spacing:0.2em;font-size:18px}
 .lock-controls{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
 .pager{display:flex;gap:6px;margin-top:8px}
 .pager a{text-decoration:none;color:var(--muted);font-weight:600;padding:6px 10px;border-radius:8px;border:1px solid transparent}
