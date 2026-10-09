@@ -342,36 +342,47 @@ export default function App() {
   }
 
   return (
-    <div className="wrap">
+    <div className={`wrap page-${page}`}>
       <header>
-        <div>
+        <div className="brand">
           <h1>Payday Calendar</h1>
           <p className="sub" id="todayLine">Today is {fmtTodayLine(today)}</p>
+        </div>
+        <div className="site-nav">
           <nav className="pager" aria-label="Pages">
             <a href="#calendar" aria-current={page === 'calendar' ? 'page' : undefined}>Calendar</a>
             <a href="#spend" aria-current={page === 'spend' ? 'page' : undefined}>Spending</a>
             <a href="#debt" aria-current={page === 'debt' ? 'page' : undefined}>Debt</a>
             <a href="#checklist" aria-current={page === 'checklist' ? 'page' : undefined}>Checklist</a>
           </nav>
-          <div className="lock-controls">
-            {lockOn ? (
-              <>
-                <button className="btn" type="button" onClick={lockNow}>Lock now</button>
-                <button className="btn ghost" type="button" disabled={lockBusy} onClick={turnOffLock}>Turn off lock</button>
-              </>
-            ) : (
-              <button className="btn" type="button" disabled={lockBusy} onClick={startLockSetup}>
-                {lockBusy ? 'Look at the phone…' : `Protect with ${lockLabel()} + passcode`}
-              </button>
-            )}
-          </div>
+        </div>
+        <div className="lock-controls">
+          {lockOn ? (
+            <>
+              <button className="btn" type="button" onClick={lockNow}>Lock now</button>
+              <button className="btn ghost" type="button" disabled={lockBusy} onClick={turnOffLock}>Turn off lock</button>
+            </>
+          ) : (
+            <button className="btn" type="button" disabled={lockBusy} onClick={startLockSetup}>
+              {lockBusy ? 'Look at the phone…' : (
+                <>
+                  <span className="lock-label-full">Protect with {lockLabel()} + passcode</span>
+                  <span className="lock-label-short">Protect site</span>
+                </>
+              )}
+            </button>
+          )}
         </div>
         <span className="status" id="status">{status}</span>
-        <div className="hdr-actions">
-          <button className="btn" type="button" onClick={() => { location.hash = '#calendar'; setMode(jobs.length ? 'jobs' : 'jobform'); setEditingJob(null) }}>Pay schedules</button>
-          <button className="btn primary" type="button" onClick={() => { location.hash = '#calendar'; setView(today.slice(0, 7)); setSelected(today); setMode('day'); bumpFocus() }}>+ Log today</button>
-        </div>
       </header>
+      {page === 'calendar' ? (
+        <div className="hdr-actions">
+          <div className="hdr-actions-bar">
+            <button className="btn" type="button" onClick={() => { setMode(jobs.length ? 'jobs' : 'jobform'); setEditingJob(null) }}>Pay schedules</button>
+            <button className="btn primary" type="button" onClick={() => { setView(today.slice(0, 7)); setSelected(today); setMode('day'); bumpFocus() }}>+ Log today</button>
+          </div>
+        </div>
+      ) : null}
       {ready && page === 'spend' ? <Spend jobs={jobs} months={months} today={today} /> : null}
       {ready && page === 'debt' ? <Debt debts={debts} onSave={persistDebts} /> : null}
       {ready && page === 'checklist' ? <Checklist budget={budget} onSave={persistBudget} jobs={jobs} months={months} today={today} /> : null}
