@@ -10,7 +10,9 @@ import {
   isLockEnabled,
   isUnlocked,
   markUnlocked,
+  sameCredential,
   toBase64Url,
+  userVerified,
 } from './lock.js'
 
 function memoryStore(start = {}) {
@@ -54,4 +56,19 @@ test('disable lock clears saved Face ID and session unlock', () => {
   disableLock(local, session)
   assert.equal(isLockEnabled(local), false)
   assert.equal(isUnlocked(session), false)
+})
+
+test('only the saved Face ID credential is accepted', () => {
+  const mine = new Uint8Array([9, 8, 7, 6]).buffer
+  const other = new Uint8Array([1, 2, 3, 4]).buffer
+  const stored = toBase64Url(mine)
+  assert.equal(sameCredential(stored, mine), true)
+  assert.equal(sameCredential(stored, other), false)
+})
+
+test('unlock requires the user-verified Face ID flag', () => {
+  const data = new Uint8Array(37)
+  assert.equal(userVerified(data), false)
+  data[32] = 0x04
+  assert.equal(userVerified(data), true)
 })

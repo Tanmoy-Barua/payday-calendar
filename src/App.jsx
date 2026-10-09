@@ -1,11 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { fmtTodayLine, hrs, localToday, money, fmtShort } from './dates.js'
 import { loadState, saveJobs, saveMonth, saveDebts } from './api.js'
 import {
   clearUnlocked,
   disableLock,
   isLockEnabled,
-  isUnlocked,
   lockLabel,
   lockSupported,
   registerLock,
@@ -41,8 +40,10 @@ export default function App() {
   const [ready, setReady] = useState(false)
   const [page, setPage] = useState(pageFromHash)
   const [lockOn, setLockOn] = useState(() => isLockEnabled())
-  const [unlocked, setUnlocked] = useState(() => !isLockEnabled() || isUnlocked())
+  // Fresh visits always need Face ID again when the lock is on.
+  const [unlocked, setUnlocked] = useState(() => !isLockEnabled())
   const [lockBusy, setLockBusy] = useState(false)
+  const unlockingRef = useRef(false)
 
   useEffect(() => {
     const sync = () => setPage(pageFromHash())
@@ -67,6 +68,29 @@ export default function App() {
     })
     return () => { cancel = true }
   }, [unlocked])
+
+  useEffect(() => {
+    if (!lockOn) return undefined
+    function hidePrivateData() {
+      if (unlockingRef.current) return
+      clearUnlocked()
+      setUnlocked(false)
+      setReady(false)
+      setJobs([])
+      setMonths({})
+      setDebts([])
+      setStatus('Locked')
+    }
+    function onVisibility() {
+      if (document.visibilityState === 'hidden') hidePrivateData()
+    }
+    document.addEventListener('visibilitychange', onVisibility)
+    window.addEventListener('pagehide', hidePrivateData)
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility)
+      window.removeEventListener('pagehide', hidePrivateData)
+    }
+  }, [lockOn])
 
   useEffect(() => {
     if (!flash) return undefined
@@ -173,20 +197,22 @@ export default function App() {
 
   async function turnOnLock() {
     if (!lockSupported()) {
-      setStatus(`${lockLabel()} is not available in this browser. Use Safari on iPhone, or Chrome with device unlock.`)
+      setStatus(`${lockLabel()} is not available in this browser. Use Safari on iPhone.`)
       return
     }
     setLockBusy(true)
+    unlockingRef.current = true
     try {
       await registerLock()
       setLockOn(true)
       setUnlocked(true)
-      setStatus(`${lockLabel()} lock is on`)
+      setStatus(`Only your ${lockLabel()} can open this app now`)
     } catch (err) {
       const message = String(err?.message || err || '')
       if (/cancel|not allowed|abort/i.test(message)) setStatus('Face ID setup cancelled')
       else setStatus(message || 'Could not turn on Face ID')
     } finally {
+      unlockingRef.current = false
       setLockBusy(false)
     }
   }
@@ -201,12 +227,23 @@ export default function App() {
   function lockNow() {
     clearUnlocked()
     setReady(false)
+    setJobs([])
+    setMonths({})
+    setDebts([])
     setUnlocked(false)
     setStatus('Locked')
   }
 
   if (lockOn && !unlocked) {
-    return <LockScreen onUnlocked={() => setUnlocked(true)} />
+    return (
+      <LockScreen
+        onUnlocking={value => { unlockingRef.current = value }}
+        onUnlocked={() => {
+          unlockingRef.current = false
+          setUnlocked(true)
+        }}
+      />
+    )
   }
 
   return (
@@ -228,7 +265,7 @@ export default function App() {
               </>
             ) : (
               <button className="btn" type="button" disabled={lockBusy} onClick={turnOnLock}>
-                {lockBusy ? 'Waiting…' : `Protect with ${lockLabel()}`}
+                {lockBusy ? 'Look at the phone…' : `Protect with only my ${lockLabel()}`}
               </button>
             )}
           </div>

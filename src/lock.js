@@ -18,6 +18,19 @@ export function fromBase64Url(value) {
   return bytes.buffer
 }
 
+export function userVerified(authenticatorData) {
+  const bytes = authenticatorData instanceof ArrayBuffer
+    ? new Uint8Array(authenticatorData)
+    : new Uint8Array(authenticatorData || [])
+  if (bytes.length < 33) return false
+  return (bytes[32] & 0x04) !== 0
+}
+
+export function sameCredential(storedId, rawId) {
+  if (!storedId || !rawId) return false
+  return storedId === toBase64Url(rawId)
+}
+
 export function lockSupported() {
   return typeof window !== 'undefined'
     && !!window.PublicKeyCredential
@@ -64,8 +77,8 @@ export async function registerLock() {
       rp: { name: 'Payday Calendar', id: rpId() },
       user: {
         id: crypto.getRandomValues(new Uint8Array(16)),
-        name: 'paycheck',
-        displayName: 'Payday Calendar',
+        name: 'owner',
+        displayName: 'Payday Calendar owner',
       },
       pubKeyCredParams: [
         { type: 'public-key', alg: -7 },
@@ -74,12 +87,18 @@ export async function registerLock() {
       authenticatorSelection: {
         authenticatorAttachment: 'platform',
         userVerification: 'required',
-        residentKey: 'preferred',
+        residentKey: 'discouraged',
       },
+      attestation: 'none',
       timeout: 60_000,
     },
   })
   if (!credential?.rawId) throw new Error('Could not set up Face ID.')
+  const attested = credential.response?.getAuthenticatorData?.()
+    || credential.response?.authenticatorData
+  if (attested && !userVerified(attested)) {
+    throw new Error('Face ID did not confirm it was you. Try again.')
+  }
   localStorage.setItem(LOCK_CRED_KEY, toBase64Url(credential.rawId))
   localStorage.setItem(LOCK_ON_KEY, '1')
   markUnlocked()
@@ -104,6 +123,12 @@ export async function unlockWithFaceId() {
     },
   })
   if (!assertion) throw new Error('Unlock was cancelled.')
+  if (!sameCredential(stored, assertion.rawId)) {
+    throw new Error('This Face ID is not the one saved for Payday Calendar.')
+  }
+  if (!userVerified(assertion.response.authenticatorData)) {
+    throw new Error('Face ID did not confirm it was you. Try again.')
+  }
   markUnlocked()
   return true
 }
