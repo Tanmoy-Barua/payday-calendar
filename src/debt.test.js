@@ -1,6 +1,17 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { finishDate, planFromPayments } from './debt.js'
+import { finishDate, monthsToFinish, planFromPayments } from './debt.js'
+
+test('total debt of $8,600 at $500 a month takes 18 months', () => {
+  const result = monthsToFinish(8600, 500, '2026-10-09')
+  assert.equal(result.done, false)
+  assert.equal(result.months, 18)
+  assert.equal(result.day, '2028-04-09')
+})
+
+test('paid-off total debt needs zero months', () => {
+  assert.deepEqual(monthsToFinish(0, 500, '2026-10-09'), { done: true, months: 0, day: null })
+})
 
 test('a finished debt has no finish date left', () => {
   assert.deepEqual(

@@ -1,4 +1,4 @@
-import { add, diff } from './dates.js'
+import { add, diff, P, S } from './dates.js'
 
 export const PAY_EVERY = [
   { id: 7, label: 'Every week' },
@@ -7,9 +7,21 @@ export const PAY_EVERY = [
 ]
 
 export const DEFAULT_EVERY_DAYS = 14
+export const MONTHLY_PAY_KEY = 'payday-debt-monthly-pay'
 
 function money2(n) {
   return Math.round((Number(n) || 0) * 100) / 100
+}
+
+export function monthsToFinish(remaining, monthlyPay, today) {
+  const owed = money2(remaining)
+  const pay = money2(monthlyPay)
+  if (owed <= 0) return { done: true, months: 0, day: null }
+  if (!(pay > 0)) return { done: false, months: null, day: null }
+  const months = Math.ceil(owed / pay)
+  const start = /^\d{4}-\d{2}-\d{2}$/.test(today || '') ? P(today) : P('2026-10-01')
+  const end = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + months, start.getUTCDate()))
+  return { done: false, months, day: S(end) }
 }
 
 export function finishDate({ remaining, payment, everyDays, today, lastPaid }) {

@@ -1,6 +1,21 @@
-import { useState } from 'react'
-import { fmtLong, fmtShort, fmtTodayLine, localToday, money, uid } from '../dates.js'
-import { DEFAULT_EVERY_DAYS, PAY_EVERY, everyLabel, finishDate, planFromPayments } from '../debt.js'
+import { useEffect, useState } from 'react'
+import { fmtLong, fmtMonth, fmtShort, fmtTodayLine, localToday, money, uid } from '../dates.js'
+import {
+  DEFAULT_EVERY_DAYS,
+  MONTHLY_PAY_KEY,
+  PAY_EVERY,
+  everyLabel,
+  finishDate,
+  monthsToFinish,
+  planFromPayments,
+} from '../debt.js'
+
+function readMonthlyPay() {
+  const saved = localStorage.getItem(MONTHLY_PAY_KEY)
+  if (saved == null || saved === '') return ''
+  const amount = Number(saved)
+  return Number.isFinite(amount) && amount >= 0 ? String(amount) : ''
+}
 
 function money2(n) {
   return Math.round((Number(n) || 0) * 100) / 100
@@ -432,14 +447,9 @@ export default function Debt({ debts, onSave }) {
   const list = withTotals(debts)
   const owed = money2(list.reduce((sum, d) => sum + d.remaining, 0))
   const paid = money2(list.reduce((sum, d) => sum + d.paid, 0))
-  const finishes = list
-    .map(debt => debtFinish(debt, today))
-    .filter(item => item.day)
-    .map(item => item.day)
-    .sort()
-  const allClearBy = finishes.length ? finishes[finishes.length - 1] : null
   const allDone = list.length > 0 && list.every(debt => debt.remaining <= 0)
 
+  const [monthlyPay, setMonthlyPay] = useState(readMonthlyPay)
   const [name, setName] = useState('')
   const [total, setTotal] = useState('')
   const [note, setNote] = useState('')
@@ -447,6 +457,19 @@ export default function Debt({ debts, onSave }) {
   const [payment, setPayment] = useState('')
   const [everyDays, setEveryDays] = useState(DEFAULT_EVERY_DAYS)
   const [bad, setBad] = useState(false)
+
+  useEffect(() => {
+    if (monthlyPay === '') localStorage.removeItem(MONTHLY_PAY_KEY)
+    else localStorage.setItem(MONTHLY_PAY_KEY, String(monthlyPay))
+  }, [monthlyPay])
+
+  const payoff = monthsToFinish(owed, monthlyPay, today)
+  const finishMonth = payoff.day
+    ? (() => {
+        const [y, m] = payoff.day.split('-').map(Number)
+        return fmtMonth(y, m)
+      })()
+    : null
 
   function persist(next) {
     onSave(withTotals(next))
@@ -520,7 +543,7 @@ export default function Debt({ debts, onSave }) {
         <section className="card">
           <div className="label">Debt tracker</div>
           <h2>What you still owe</h2>
-          <p className="note">Add each debt, set how much you pay, and see when it should finish.</p>
+          <p className="note">Enter how much you put toward all debt each month to see how long the total takes.</p>
           <div className="debt-stats">
             <div>
               <div className="label">Still owed</div>
@@ -535,17 +558,41 @@ export default function Debt({ debts, onSave }) {
               <div className="num">{list.length}</div>
             </div>
           </div>
+          <label className="field" htmlFor="monthlyDebtPay">
+            <span className="label">I pay this much per month</span>
+            <input
+              id="monthlyDebtPay"
+              type="number"
+              min="0"
+              step="0.01"
+              inputMode="decimal"
+              placeholder="e.g. 500"
+              value={monthlyPay}
+              onChange={ev => setMonthlyPay(ev.target.value === '' ? '' : String(Math.max(0, Number(ev.target.value) || 0)))}
+            />
+          </label>
           {allDone ? (
             <div className="debt-finish done">
-              <div className="label">All debts</div>
+              <div className="label">Total payoff</div>
               <div className="num">Paid off</div>
             </div>
-          ) : allClearBy ? (
+          ) : payoff.months != null ? (
             <div className="debt-finish">
-              <div className="label">All debts finish by</div>
-              <div className="num">{fmtTodayLine(allClearBy)}</div>
+              <div className="label">Total payoff</div>
+              <div className="big num">
+                {payoff.months} month{payoff.months === 1 ? '' : 's'}
+              </div>
+              <p className="note">
+                {money(owed)} ÷ {money(Number(monthlyPay) || 0)} a month
+                {finishMonth ? ` · finishes around ${finishMonth}` : ''}
+              </p>
             </div>
-          ) : null}
+          ) : (
+            <div className="debt-finish">
+              <div className="label">Total payoff</div>
+              <p className="note">Enter a monthly amount to see how many months the total debt will take.</p>
+            </div>
+          )}
         </section>
 
         <section className="card">
