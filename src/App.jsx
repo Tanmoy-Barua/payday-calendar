@@ -10,6 +10,7 @@ import {
   saveJobs,
   saveMonth,
   setupAuth,
+  touchAuth,
 } from './api.js'
 import {
   clearUnlocked,
@@ -28,6 +29,7 @@ import LockScreen from './components/LockScreen.jsx'
 import { defaultBudgetNote } from './checklist.js'
 
 const today = localToday()
+const DEFAULT_IDLE_MS = 60 * 60 * 1000
 
 function pageFromHash() {
   if (location.hash === '#spend') return 'spend'
@@ -57,7 +59,21 @@ export default function App() {
   const [unlocked, setUnlocked] = useState(false)
   const [setupOpen, setSetupOpen] = useState(false)
   const [lockBusy, setLockBusy] = useState(false)
+  const [idleMs, setIdleMs] = useState(DEFAULT_IDLE_MS)
   const unlockingRef = useRef(false)
+  const idleTimerRef = useRef(null)
+  const lastTouchRef = useRef(0)
+
+  function clearPrivateData(message = 'Locked') {
+    clearUnlocked()
+    setUnlocked(false)
+    setReady(false)
+    setJobs([])
+    setMonths({})
+    setDebts([])
+    setBudget(defaultBudgetNote())
+    setStatus(message)
+  }
 
   useEffect(() => {
     const sync = () => setPage(pageFromHash())
@@ -70,6 +86,7 @@ export default function App() {
     loadAuthStatus().then(auth => {
       if (cancel) return
       setLockOn(!!auth.lockEnabled)
+      setIdleMs(Number(auth.idleMs) > 0 ? Number(auth.idleMs) : DEFAULT_IDLE_MS)
       setUnlocked(!auth.lockEnabled || !!auth.authenticated)
       setAuthReady(true)
     }).catch(() => {
@@ -98,9 +115,7 @@ export default function App() {
       if (cancel) return
       if (err?.status === 401 || err?.data?.error === 'locked') {
         setLockOn(true)
-        setUnlocked(false)
-        setReady(false)
-        setStatus('Locked')
+        clearPrivateData('Session ended')
         return
       }
       setStatus('Could not load the database')
@@ -108,30 +123,36 @@ export default function App() {
     return () => { cancel = true }
   }, [authReady, unlocked])
 
+  // Keep the session while you use the site. Do NOT log out just for switching apps/tabs.
+  // After idleMs with no activity, expire the session (default 1 hour).
   useEffect(() => {
-    if (!lockOn) return undefined
-    function hidePrivateData() {
+    if (!lockOn || !unlocked) return undefined
+
+    function logoutIdle() {
       if (unlockingRef.current) return
-      clearUnlocked()
-      setUnlocked(false)
-      setReady(false)
-      setJobs([])
-      setMonths({})
-      setDebts([])
-      setBudget(defaultBudgetNote())
-      setStatus('Locked')
+      clearPrivateData('Logged out after 1 hour idle')
       logoutAuth().catch(() => {})
     }
-    function onVisibility() {
-      if (document.visibilityState === 'hidden') hidePrivateData()
+
+    function bumpIdle() {
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current)
+      idleTimerRef.current = setTimeout(logoutIdle, idleMs)
+      const now = Date.now()
+      if (now - lastTouchRef.current < 60_000) return
+      lastTouchRef.current = now
+      touchAuth().catch(err => {
+        if (err?.status === 401) logoutIdle()
+      })
     }
-    document.addEventListener('visibilitychange', onVisibility)
-    window.addEventListener('pagehide', hidePrivateData)
+
+    const events = ['pointerdown', 'keydown', 'scroll', 'touchstart', 'mousemove']
+    events.forEach(name => window.addEventListener(name, bumpIdle, { passive: true }))
+    bumpIdle()
     return () => {
-      document.removeEventListener('visibilitychange', onVisibility)
-      window.removeEventListener('pagehide', hidePrivateData)
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current)
+      events.forEach(name => window.removeEventListener(name, bumpIdle))
     }
-  }, [lockOn])
+  }, [lockOn, unlocked, idleMs])
 
   useEffect(() => {
     if (!flash) return undefined
@@ -289,14 +310,7 @@ export default function App() {
   }
 
   async function lockNow() {
-    clearUnlocked()
-    setReady(false)
-    setJobs([])
-    setMonths({})
-    setDebts([])
-    setBudget(defaultBudgetNote())
-    setUnlocked(false)
-    setStatus('Locked')
+    clearPrivateData('Locked')
     try {
       await logoutAuth()
     } catch {

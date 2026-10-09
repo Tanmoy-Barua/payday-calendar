@@ -276,8 +276,13 @@ function getBudget(PDO $db): array {
 }
 
 const AUTH_COOKIE = 'payday_session';
-const AUTH_SESSION_HOURS = 12;
 const AUTH_PBKDF2_ROUNDS = 120000;
+
+function sessionIdleMs(): int {
+    $raw = getenv('PAYDAY_SESSION_IDLE_MS');
+    if (is_string($raw) && is_numeric($raw) && (float)$raw > 0) return (int)$raw;
+    return 60 * 60 * 1000;
+}
 
 function ensureAuthTables(PDO $db): void {
     $db->exec('
@@ -329,20 +334,26 @@ function readSessionToken(array $cookies): string {
     return (string)($cookies[AUTH_COOKIE] ?? '');
 }
 
-function readSession(PDO $db, array $cookies): ?string {
+function readSession(PDO $db, array $cookies, bool $touch = false): ?array {
     $token = readSessionToken($cookies);
     if ($token === '') return null;
     $now = (int)round(microtime(true) * 1000);
     $db->prepare('DELETE FROM sessions WHERE expires < ?')->execute([$now]);
-    $stmt = $db->prepare('SELECT token FROM sessions WHERE token = ? AND expires >= ?');
+    $stmt = $db->prepare('SELECT token, expires FROM sessions WHERE token = ? AND expires >= ?');
     $stmt->execute([$token, $now]);
     $row = $stmt->fetch();
-    return $row ? (string)$row['token'] : null;
+    if (!$row) return null;
+    if ($touch) {
+        $expires = $now + sessionIdleMs();
+        $db->prepare('UPDATE sessions SET expires = ? WHERE token = ?')->execute([$expires, $token]);
+        return ['token' => $token, 'expires' => $expires];
+    }
+    return ['token' => (string)$row['token'], 'expires' => (int)$row['expires']];
 }
 
 function createSession(PDO $db): array {
     $token = bin2hex(random_bytes(24));
-    $expires = (int)round(microtime(true) * 1000) + AUTH_SESSION_HOURS * 3600 * 1000;
+    $expires = (int)round(microtime(true) * 1000) + sessionIdleMs();
     $db->prepare('INSERT INTO sessions (token, expires) VALUES (?, ?)')->execute([$token, $expires]);
     return ['token' => $token, 'expires' => $expires];
 }
@@ -375,23 +386,28 @@ function clearCookieHeader(bool $secure): string {
 function getAuthStatus(PDO $db, array $cookies = []): array {
     $lock = $db->query('SELECT enabled, cred_id FROM app_lock WHERE id = 1')->fetch() ?: ['enabled' => 0, 'cred_id' => null];
     $enabled = !empty($lock['enabled']);
-    $authenticated = $enabled ? readSession($db, $cookies) !== null : true;
+    $authenticated = $enabled ? readSession($db, $cookies, false) !== null : true;
     return [
         'lockEnabled' => $enabled,
         'authenticated' => $authenticated,
         'hasServerCred' => !empty($lock['cred_id']),
+        'idleMs' => sessionIdleMs(),
     ];
 }
 
-function requireAuth(PDO $db, array $cookies): ?array {
+function requireAuth(PDO $db, array $cookies, bool $secure = false): array {
     $status = getAuthStatus($db, $cookies);
-    if (!$status['lockEnabled'] || $status['authenticated']) return null;
-    return [401, ['error' => 'locked', 'lockEnabled' => true, 'authenticated' => false], []];
+    if (!$status['lockEnabled']) return [null, []];
+    $session = readSession($db, $cookies, true);
+    if ($session === null) {
+        return [[401, ['error' => 'locked', 'lockEnabled' => true, 'authenticated' => false], []], []];
+    }
+    return [null, [sessionCookieHeader($session['token'], $session['expires'], $secure)]];
 }
 
 function setupLock(PDO $db, array $cookies, $body, bool $secure): array {
     $lock = $db->query('SELECT enabled FROM app_lock WHERE id = 1')->fetch();
-    if (!empty($lock['enabled']) && readSession($db, $cookies) === null) {
+    if (!empty($lock['enabled']) && readSession($db, $cookies, false) === null) {
         throw new InvalidArgumentException('Already locked. Unlock first.');
     }
     $pin = cleanPin(is_array($body) ? ($body['pin'] ?? '') : '');
@@ -403,7 +419,7 @@ function setupLock(PDO $db, array $cookies, $body, bool $secure): array {
     $session = createSession($db);
     return [
         200,
-        ['ok' => true, 'lockEnabled' => true, 'authenticated' => true],
+        ['ok' => true, 'lockEnabled' => true, 'authenticated' => true, 'idleMs' => sessionIdleMs()],
         [sessionCookieHeader($session['token'], $session['expires'], $secure)],
     ];
 }
@@ -411,7 +427,7 @@ function setupLock(PDO $db, array $cookies, $body, bool $secure): array {
 function loginLock(PDO $db, $body, bool $secure): array {
     $lock = $db->query('SELECT enabled, pin_hash, cred_id FROM app_lock WHERE id = 1')->fetch();
     if (empty($lock['enabled'])) {
-        return [200, ['ok' => true, 'lockEnabled' => false, 'authenticated' => true], []];
+        return [200, ['ok' => true, 'lockEnabled' => false, 'authenticated' => true, 'idleMs' => sessionIdleMs()], []];
     }
     $pin = (string)(is_array($body) ? ($body['pin'] ?? '') : '');
     $deviceCred = (string)(is_array($body) ? ($body['credId'] ?? '') : '');
@@ -424,7 +440,23 @@ function loginLock(PDO $db, $body, bool $secure): array {
     $session = createSession($db);
     return [
         200,
-        ['ok' => true, 'lockEnabled' => true, 'authenticated' => true],
+        ['ok' => true, 'lockEnabled' => true, 'authenticated' => true, 'idleMs' => sessionIdleMs()],
+        [sessionCookieHeader($session['token'], $session['expires'], $secure)],
+    ];
+}
+
+function touchAuth(PDO $db, array $cookies, bool $secure): array {
+    $status = getAuthStatus($db, $cookies);
+    if (!$status['lockEnabled']) {
+        return [200, ['ok' => true, 'authenticated' => true, 'idleMs' => sessionIdleMs()], []];
+    }
+    $session = readSession($db, $cookies, true);
+    if ($session === null) {
+        return [401, ['ok' => false, 'authenticated' => false, 'lockEnabled' => true], []];
+    }
+    return [
+        200,
+        ['ok' => true, 'authenticated' => true, 'idleMs' => sessionIdleMs(), 'expiresAt' => $session['expires']],
         [sessionCookieHeader($session['token'], $session['expires'], $secure)],
     ];
 }
@@ -716,29 +748,32 @@ function handleRequest(string $method, string $route, $payload, PDO $db, array $
         if ($method === 'POST' && $route === 'auth/logout') {
             return logoutLock($db, $cookies, $secure);
         }
+        if ($method === 'POST' && $route === 'auth/touch') {
+            return touchAuth($db, $cookies, $secure);
+        }
         if ($method === 'POST' && $route === 'auth/disable') {
             return disableLockAuth($db, $payload, $secure);
         }
 
-        $blocked = requireAuth($db, $cookies);
+        [$blocked, $touchCookies] = requireAuth($db, $cookies, $secure);
         if ($blocked !== null) return $blocked;
 
-        if ($method === 'GET' && $route === 'state') return [200, getState($db), []];
+        if ($method === 'GET' && $route === 'state') return [200, getState($db), $touchCookies];
         if ($method === 'PUT' && $route === 'jobs') {
             saveJobs($db, is_array($payload) ? ($payload['jobs'] ?? []) : []);
-            return [200, ['ok' => true], []];
+            return [200, ['ok' => true], $touchCookies];
         }
         if ($method === 'PUT' && preg_match('#^months/(\d{4}-\d{2})$#', $route, $match)) {
             saveMonth($db, $match[1], is_array($payload) ? ($payload['days'] ?? []) : []);
-            return [200, ['ok' => true], []];
+            return [200, ['ok' => true], $touchCookies];
         }
         if ($method === 'PUT' && $route === 'debts') {
             saveDebts($db, is_array($payload) ? ($payload['debts'] ?? []) : []);
-            return [200, ['ok' => true], []];
+            return [200, ['ok' => true], $touchCookies];
         }
         if ($method === 'PUT' && $route === 'budget') {
             saveBudget($db, is_array($payload) ? ($payload['budget'] ?? []) : []);
-            return [200, ['ok' => true], []];
+            return [200, ['ok' => true], $touchCookies];
         }
         return [404, ['error' => 'not found'], []];
     } catch (InvalidArgumentException $err) {

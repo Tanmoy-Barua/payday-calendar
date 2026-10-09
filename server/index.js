@@ -10,6 +10,7 @@ import {
   logoutLock,
   requireAuth,
   setupLock,
+  touchAuth,
 } from './auth.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -44,6 +45,11 @@ app.post('/api/auth/login', (req, res) => {
 
 app.post('/api/auth/logout', (req, res) => {
   res.json(logoutLock(db, req, res))
+})
+
+app.post('/api/auth/touch', (req, res) => {
+  const result = touchAuth(db, req, res)
+  res.status(result.ok ? 200 : 401).json(result)
 })
 
 app.post('/api/auth/disable', (req, res) => {

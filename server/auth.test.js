@@ -12,6 +12,7 @@ import {
   logoutLock,
   requireAuth,
   setupLock,
+  touchAuth,
 } from './auth.js'
 
 function mockRes() {
@@ -103,5 +104,41 @@ test('setup is refused when lock is already on without a session', async () => {
     () => setupLock(db, reqWithCookie(), mockRes(), { pin: '1111' }),
     /Unlock first/,
   )
+  fs.rmSync(file, { force: true })
+})
+
+test('touch extends a 1-hour idle session and reports idleMs', async () => {
+  const prev = process.env.PAYDAY_SESSION_IDLE_MS
+  process.env.PAYDAY_SESSION_IDLE_MS = '3600000'
+  const file = path.join(os.tmpdir(), `payday-auth-idle-${process.pid}.sqlite`)
+  fs.rmSync(file, { force: true })
+  const db = await openDb(file)
+
+  const loginRes = mockRes()
+  setupLock(db, reqWithCookie(), loginRes, { pin: '8642' })
+  const token = cookieFrom(loginRes)
+  assert.ok(token)
+
+  const status = getAuthStatus(db, reqWithCookie(`payday_session=${token}`))
+  assert.equal(status.idleMs, 3_600_000)
+  assert.equal(status.authenticated, true)
+
+  const before = db.prepare('SELECT expires FROM sessions WHERE token = ?').get(token).expires
+  await new Promise(r => setTimeout(r, 5))
+  const touchRes = mockRes()
+  const touched = touchAuth(db, reqWithCookie(`payday_session=${token}`), touchRes)
+  assert.equal(touched.ok, true)
+  assert.ok(touched.expiresAt >= before)
+  assert.ok(cookieFrom(touchRes))
+
+  const expiredToken = 'deadbeef'
+  db.prepare('INSERT INTO sessions (token, expires) VALUES (?, ?)').run(expiredToken, Date.now() - 10)
+  const expiredRes = mockRes()
+  const expired = touchAuth(db, reqWithCookie(`payday_session=${expiredToken}`), expiredRes)
+  assert.equal(expired.ok, false)
+  assert.equal(expiredRes.statusCode, 401)
+
+  if (prev === undefined) delete process.env.PAYDAY_SESSION_IDLE_MS
+  else process.env.PAYDAY_SESSION_IDLE_MS = prev
   fs.rmSync(file, { force: true })
 })

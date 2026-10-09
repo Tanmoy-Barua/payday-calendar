@@ -1,8 +1,13 @@
 import crypto from 'node:crypto'
 
-const SESSION_HOURS = 12
 const COOKIE = 'payday_session'
 const PBKDF2_ROUNDS = 120_000
+
+export function sessionIdleMs() {
+  const raw = Number(process.env.PAYDAY_SESSION_IDLE_MS)
+  if (Number.isFinite(raw) && raw > 0) return raw
+  return 60 * 60 * 1000
+}
 
 export function ensureAuthTables(db) {
   db.exec(`
@@ -58,11 +63,12 @@ function cleanPin(pin) {
 export function getAuthStatus(db, req) {
   const lock = db.prepare('SELECT enabled, cred_id FROM app_lock WHERE id = 1').get() || { enabled: 0, cred_id: null }
   const enabled = !!lock.enabled
-  const authenticated = enabled ? !!readSession(db, req) : true
+  const authenticated = enabled ? !!readSession(db, req, { touch: false }) : true
   return {
     lockEnabled: enabled,
     authenticated,
     hasServerCred: !!lock.cred_id,
+    idleMs: sessionIdleMs(),
   }
 }
 
@@ -76,18 +82,24 @@ function readCookie(req, name) {
   return ''
 }
 
-function readSession(db, req) {
+function readSession(db, req, { touch = false } = {}) {
   const token = readCookie(req, COOKIE)
   if (!token) return null
   const now = Date.now()
   db.prepare('DELETE FROM sessions WHERE expires < ?').run(now)
-  const row = db.prepare('SELECT token FROM sessions WHERE token = ? AND expires >= ?').get(token, now)
-  return row ? token : null
+  const row = db.prepare('SELECT token, expires FROM sessions WHERE token = ? AND expires >= ?').get(token, now)
+  if (!row) return null
+  if (touch) {
+    const expires = now + sessionIdleMs()
+    db.prepare('UPDATE sessions SET expires = ? WHERE token = ?').run(expires, token)
+    return { token, expires }
+  }
+  return { token, expires: row.expires }
 }
 
 function createSession(db) {
   const token = crypto.randomBytes(24).toString('hex')
-  const expires = Date.now() + SESSION_HOURS * 3600 * 1000
+  const expires = Date.now() + sessionIdleMs()
   db.prepare('INSERT INTO sessions (token, expires) VALUES (?, ?)').run(token, expires)
   return { token, expires }
 }
@@ -115,11 +127,20 @@ function isSecure(req) {
   return req.secure || req.headers['x-forwarded-proto'] === 'https'
 }
 
+function writeSessionCookie(req, res, session) {
+  res.setHeader('Set-Cookie', sessionCookie(session.token, session.expires, isSecure(req)))
+}
+
 export function requireAuth(db, req, res) {
   const status = getAuthStatus(db, req)
-  if (!status.lockEnabled || status.authenticated) return true
-  res.status(401).json({ error: 'locked', lockEnabled: true, authenticated: false })
-  return false
+  if (!status.lockEnabled) return true
+  const session = readSession(db, req, { touch: true })
+  if (!session) {
+    res.status(401).json({ error: 'locked', lockEnabled: true, authenticated: false })
+    return false
+  }
+  writeSessionCookie(req, res, session)
+  return true
 }
 
 export function setupLock(db, req, res, body) {
@@ -133,13 +154,13 @@ export function setupLock(db, req, res, body) {
   db.prepare('UPDATE app_lock SET enabled = 1, pin_hash = ?, cred_id = ? WHERE id = 1').run(pinHash, credId || null)
   db.exec('DELETE FROM sessions')
   const session = createSession(db)
-  res.setHeader('Set-Cookie', sessionCookie(session.token, session.expires, isSecure(req)))
-  return { ok: true, lockEnabled: true, authenticated: true }
+  writeSessionCookie(req, res, session)
+  return { ok: true, lockEnabled: true, authenticated: true, idleMs: sessionIdleMs() }
 }
 
 export function loginLock(db, req, res, body) {
   const lock = db.prepare('SELECT enabled, pin_hash, cred_id FROM app_lock WHERE id = 1').get()
-  if (!lock?.enabled) return { ok: true, lockEnabled: false, authenticated: true }
+  if (!lock?.enabled) return { ok: true, lockEnabled: false, authenticated: true, idleMs: sessionIdleMs() }
   const pin = String(body?.pin || '')
   const deviceCred = String(body?.credId || '')
   if (!verifyPin(pin, lock.pin_hash)) throw new Error('Wrong passcode')
@@ -147,8 +168,8 @@ export function loginLock(db, req, res, body) {
     throw new Error('This device is not enrolled')
   }
   const session = createSession(db)
-  res.setHeader('Set-Cookie', sessionCookie(session.token, session.expires, isSecure(req)))
-  return { ok: true, lockEnabled: true, authenticated: true }
+  writeSessionCookie(req, res, session)
+  return { ok: true, lockEnabled: true, authenticated: true, idleMs: sessionIdleMs() }
 }
 
 export function logoutLock(db, req, res) {
@@ -171,4 +192,16 @@ export function disableLockAuth(db, req, res, body) {
   return { ok: true, lockEnabled: false, authenticated: true }
 }
 
-export const __test = { hashPin, verifyPin, cleanPin, COOKIE }
+export function touchAuth(db, req, res) {
+  const status = getAuthStatus(db, req)
+  if (!status.lockEnabled) return { ok: true, authenticated: true, idleMs: sessionIdleMs() }
+  const session = readSession(db, req, { touch: true })
+  if (!session) {
+    res.status(401)
+    return { ok: false, authenticated: false, lockEnabled: true }
+  }
+  writeSessionCookie(req, res, session)
+  return { ok: true, authenticated: true, idleMs: sessionIdleMs(), expiresAt: session.expires }
+}
+
+export const __test = { hashPin, verifyPin, cleanPin, COOKIE, sessionIdleMs }

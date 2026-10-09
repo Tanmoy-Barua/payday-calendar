@@ -46,6 +46,13 @@ export function logoutAuth() {
   return request('/api/auth/logout', { method: 'POST', body: '{}' })
 }
 
+export function touchAuth() {
+  return request('/api/auth/touch', {
+    method: 'POST',
+    body: '{}',
+  })
+}
+
 export function disableAuth(pin) {
   return request('/api/auth/disable', {
     method: 'POST',

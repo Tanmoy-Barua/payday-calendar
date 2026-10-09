@@ -121,8 +121,15 @@ assert($session !== '', 'session token');
 assert($status === 401, 'state blocked without session');
 assert(($blocked['error'] ?? '') === 'locked', 'locked error');
 
-[$status, $ok] = handleRequest('GET', 'state', null, openDb(), ['payday_session' => $session], false);
+[$status, $ok, $touchCookies] = handleRequest('GET', 'state', null, openDb(), ['payday_session' => $session], false);
 assert($status === 200, 'state allowed with session');
+assert(count($touchCookies) === 1, 'state refreshes session cookie');
+assert(($auth['idleMs'] ?? 0) === 3600000 || ($auth['idleMs'] ?? 0) > 0, 'idleMs reported');
+
+[$status, $touched, $touchSet] = handleRequest('POST', 'auth/touch', null, openDb(), ['payday_session' => $session], false);
+assert($status === 200, 'touch ok');
+assert(($touched['ok'] ?? false) === true, 'touch success');
+assert(count($touchSet) === 1, 'touch sets cookie');
 
 [$status, $badLogin] = handleRequest('POST', 'auth/login', ['pin' => '0000'], openDb(), [], false);
 assert($status === 401, 'bad pin rejected');
