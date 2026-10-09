@@ -48,6 +48,8 @@ test('sqlite stores debts and payment notes', async () => {
     total: 1200,
     note: 'Monthly payment',
     opened: '2026-10-01',
+    payment: 200,
+    everyDays: 14,
     payments: [
       { id: 'p1', day: '2026-10-06', amount: 200, note: 'First payment' },
       { id: 'p2', day: '2026-10-15', amount: 150, note: '' },
@@ -59,6 +61,8 @@ test('sqlite stores debts and payment notes', async () => {
   assert.equal(state.debts.length, 1)
   assert.equal(state.debts[0].name, 'Car loan')
   assert.equal(state.debts[0].total, 1200)
+  assert.equal(state.debts[0].payment, 200)
+  assert.equal(state.debts[0].everyDays, 14)
   assert.equal(state.debts[0].paid, 350)
   assert.equal(state.debts[0].remaining, 850)
   assert.equal(state.debts[0].payments[0].note, 'First payment')

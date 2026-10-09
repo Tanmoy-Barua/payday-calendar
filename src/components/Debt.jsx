@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { fmtLong, fmtShort, localToday, money, uid } from '../dates.js'
+import { fmtLong, fmtShort, fmtTodayLine, localToday, money, uid } from '../dates.js'
+import { DEFAULT_EVERY_DAYS, PAY_EVERY, everyLabel, finishDate, planFromPayments } from '../debt.js'
 
 function money2(n) {
   return Math.round((Number(n) || 0) * 100) / 100
@@ -10,11 +11,50 @@ function withTotals(list) {
     const payments = [...(debt.payments || [])].sort((a, b) => a.day.localeCompare(b.day) || a.id.localeCompare(b.id))
     const paid = money2(payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0))
     const total = money2(debt.total)
-    return { ...debt, total, payments, paid, remaining: money2(Math.max(0, total - paid)) }
+    const payment = debt.payment === '' || debt.payment == null ? '' : money2(debt.payment)
+    const everyDays = [7, 14, 30].includes(Number(debt.everyDays)) ? Number(debt.everyDays) : DEFAULT_EVERY_DAYS
+    return {
+      ...debt,
+      total,
+      payment,
+      everyDays,
+      payments,
+      paid,
+      remaining: money2(Math.max(0, total - paid)),
+    }
   })
 }
 
-function DebtFields({ idPrefix, name, setName, total, setTotal, opened, setOpened, note, setNote }) {
+function debtFinish(debt, today) {
+  const planned = Number(debt.payment) > 0
+    ? { payment: money2(debt.payment), everyDays: debt.everyDays || DEFAULT_EVERY_DAYS }
+    : planFromPayments(debt.payments)
+  if (!planned) {
+    return { ...finishDate({ remaining: debt.remaining, payment: 0, everyDays: 14, today }), source: null }
+  }
+  const lastPaid = debt.payments.length ? debt.payments[debt.payments.length - 1].day : null
+  return {
+    ...finishDate({
+      remaining: debt.remaining,
+      payment: planned.payment,
+      everyDays: planned.everyDays,
+      today,
+      lastPaid,
+    }),
+    source: planned,
+    fromHistory: !(Number(debt.payment) > 0),
+  }
+}
+
+function DebtFields({
+  idPrefix,
+  name, setName,
+  total, setTotal,
+  opened, setOpened,
+  note, setNote,
+  payment, setPayment,
+  everyDays, setEveryDays,
+}) {
   return (
     <>
       <label className="field" htmlFor={`${idPrefix}-name`}>
@@ -49,6 +89,33 @@ function DebtFields({ idPrefix, name, setName, total, setTotal, opened, setOpene
             value={opened}
             onChange={ev => setOpened(ev.target.value)}
           />
+        </label>
+      </div>
+      <div className="debt-fields">
+        <label className="field" htmlFor={`${idPrefix}-payment`}>
+          <span className="label">Payment each time</span>
+          <input
+            id={`${idPrefix}-payment`}
+            type="number"
+            min="0"
+            step="0.01"
+            inputMode="decimal"
+            placeholder="e.g. 200"
+            value={payment}
+            onChange={ev => setPayment(ev.target.value)}
+          />
+        </label>
+        <label className="field" htmlFor={`${idPrefix}-every`}>
+          <span className="label">How often</span>
+          <select
+            id={`${idPrefix}-every`}
+            value={everyDays}
+            onChange={ev => setEveryDays(Number(ev.target.value))}
+          >
+            {PAY_EVERY.map(item => (
+              <option key={item.id} value={item.id}>{item.label}</option>
+            ))}
+          </select>
         </label>
       </div>
       <label className="field" htmlFor={`${idPrefix}-note`}>
@@ -104,6 +171,38 @@ function PaymentFields({ idPrefix, amount, setAmount, day, setDay, note, setNote
         />
       </label>
     </>
+  )
+}
+
+function FinishLine({ debt, today }) {
+  const finish = debtFinish(debt, today)
+  if (finish.done) {
+    return (
+      <div className="debt-finish done">
+        <div className="label">When it finishes</div>
+        <div className="num">Paid off</div>
+      </div>
+    )
+  }
+  if (!finish.day) {
+    return (
+      <div className="debt-finish">
+        <div className="label">When it finishes</div>
+        <p className="note">Set a payment amount to see the finish date.</p>
+      </div>
+    )
+  }
+  return (
+    <div className="debt-finish">
+      <div className="label">When it finishes</div>
+      <div className="num">{fmtTodayLine(finish.day)}</div>
+      <p className="note">
+        {finish.paymentsLeft} more payment{finish.paymentsLeft === 1 ? '' : 's'}
+        {' · '}
+        {money(finish.source.payment)} {everyLabel(finish.source.everyDays)}
+        {finish.fromHistory ? ' · from your payment history' : ''}
+      </p>
+    </div>
   )
 }
 
@@ -174,6 +273,8 @@ function DebtCard({ debt, today, onPay, onSaveDebt, onSavePay, onRemovePay, onRe
   const [total, setTotal] = useState(String(debt.total))
   const [opened, setOpened] = useState(debt.opened)
   const [note, setNote] = useState(debt.note || '')
+  const [payment, setPayment] = useState(debt.payment === '' || debt.payment == null ? '' : String(debt.payment))
+  const [everyDays, setEveryDays] = useState(debt.everyDays || DEFAULT_EVERY_DAYS)
   const [bad, setBad] = useState(false)
 
   const [amount, setAmount] = useState('')
@@ -186,6 +287,8 @@ function DebtCard({ debt, today, onPay, onSaveDebt, onSavePay, onRemovePay, onRe
     setTotal(String(debt.total))
     setOpened(debt.opened)
     setNote(debt.note || '')
+    setPayment(debt.payment === '' || debt.payment == null ? '' : String(debt.payment))
+    setEveryDays(debt.everyDays || DEFAULT_EVERY_DAYS)
     setBad(false)
     setEditing(true)
   }
@@ -204,6 +307,8 @@ function DebtCard({ debt, today, onPay, onSaveDebt, onSavePay, onRemovePay, onRe
       total: nextTotal,
       note: note.trim(),
       opened,
+      payment: payment === '' ? '' : money2(payment),
+      everyDays,
     })
     setEditing(false)
   }
@@ -239,6 +344,10 @@ function DebtCard({ debt, today, onPay, onSaveDebt, onSavePay, onRemovePay, onRe
             setOpened={setOpened}
             note={note}
             setNote={setNote}
+            payment={payment}
+            setPayment={setPayment}
+            everyDays={everyDays}
+            setEveryDays={setEveryDays}
           />
           {bad ? <p className="note bad">Enter a name and an amount greater than zero.</p> : null}
           <div className="debt-actions">
@@ -281,6 +390,7 @@ function DebtCard({ debt, today, onPay, onSaveDebt, onSavePay, onRemovePay, onRe
         <i style={{ width: `${pct}%`, background: 'var(--j3)' }} />
       </div>
       <p className="note">Opened {fmtLong(debt.opened)} · {pct}% paid</p>
+      <FinishLine debt={debt} today={today} />
 
       <div className="label">Payments</div>
       {debt.payments.length === 0 ? (
@@ -322,11 +432,20 @@ export default function Debt({ debts, onSave }) {
   const list = withTotals(debts)
   const owed = money2(list.reduce((sum, d) => sum + d.remaining, 0))
   const paid = money2(list.reduce((sum, d) => sum + d.paid, 0))
+  const finishes = list
+    .map(debt => debtFinish(debt, today))
+    .filter(item => item.day)
+    .map(item => item.day)
+    .sort()
+  const allClearBy = finishes.length ? finishes[finishes.length - 1] : null
+  const allDone = list.length > 0 && list.every(debt => debt.remaining <= 0)
 
   const [name, setName] = useState('')
   const [total, setTotal] = useState('')
   const [note, setNote] = useState('')
   const [opened, setOpened] = useState(today)
+  const [payment, setPayment] = useState('')
+  const [everyDays, setEveryDays] = useState(DEFAULT_EVERY_DAYS)
   const [bad, setBad] = useState(false)
 
   function persist(next) {
@@ -350,19 +469,23 @@ export default function Debt({ debts, onSave }) {
         total: amount,
         note: note.trim(),
         opened,
+        payment: payment === '' ? '' : money2(payment),
+        everyDays,
         payments: [],
       },
     ])
     setName('')
     setTotal('')
     setNote('')
+    setPayment('')
+    setEveryDays(DEFAULT_EVERY_DAYS)
     setOpened(today)
   }
 
-  function addPayment(debtId, payment) {
+  function addPayment(debtId, nextPay) {
     persist(list.map(debt => (
       debt.id === debtId
-        ? { ...debt, payments: [...debt.payments, payment] }
+        ? { ...debt, payments: [...debt.payments, nextPay] }
         : debt
     )))
   }
@@ -397,7 +520,7 @@ export default function Debt({ debts, onSave }) {
         <section className="card">
           <div className="label">Debt tracker</div>
           <h2>What you still owe</h2>
-          <p className="note">Add each debt, then log every payment with a short note so the balance stays up to date.</p>
+          <p className="note">Add each debt, set how much you pay, and see when it should finish.</p>
           <div className="debt-stats">
             <div>
               <div className="label">Still owed</div>
@@ -412,6 +535,17 @@ export default function Debt({ debts, onSave }) {
               <div className="num">{list.length}</div>
             </div>
           </div>
+          {allDone ? (
+            <div className="debt-finish done">
+              <div className="label">All debts</div>
+              <div className="num">Paid off</div>
+            </div>
+          ) : allClearBy ? (
+            <div className="debt-finish">
+              <div className="label">All debts finish by</div>
+              <div className="num">{fmtTodayLine(allClearBy)}</div>
+            </div>
+          ) : null}
         </section>
 
         <section className="card">
@@ -427,6 +561,10 @@ export default function Debt({ debts, onSave }) {
               setOpened={setOpened}
               note={note}
               setNote={setNote}
+              payment={payment}
+              setPayment={setPayment}
+              everyDays={everyDays}
+              setEveryDays={setEveryDays}
             />
             {bad ? <p className="note bad">Enter a name and an amount greater than zero.</p> : null}
             <button className="btn primary" type="submit">Add debt</button>

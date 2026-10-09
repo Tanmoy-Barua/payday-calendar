@@ -48,6 +48,8 @@ function openDb(): PDO {
           total REAL NOT NULL,
           note TEXT NOT NULL DEFAULT \'\',
           opened TEXT NOT NULL,
+          payment REAL,
+          every_days INTEGER NOT NULL DEFAULT 14,
           position INTEGER NOT NULL DEFAULT 0
         );
         CREATE TABLE IF NOT EXISTS debt_payments (
@@ -60,7 +62,15 @@ function openDb(): PDO {
         CREATE INDEX IF NOT EXISTS debt_payments_debt ON debt_payments(debt_id);
     ');
     migrateCompany($db);
+    ensureDebtColumns($db);
     return $db;
+}
+
+function ensureDebtColumns(PDO $db): void {
+    $cols = [];
+    foreach ($db->query('PRAGMA table_info(debts)') as $row) $cols[$row['name']] = true;
+    if (!isset($cols['payment'])) $db->exec('ALTER TABLE debts ADD COLUMN payment REAL');
+    if (!isset($cols['every_days'])) $db->exec('ALTER TABLE debts ADD COLUMN every_days INTEGER NOT NULL DEFAULT 14');
 }
 
 function utcStamp(string $ymd): int {
@@ -189,12 +199,20 @@ function cleanDebt(array $debt, int $position): array {
     if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $opened)) $opened = '2026-10-01';
     $id = substr((string)($debt['id'] ?? ''), 0, 40);
     $name = trim(substr((string)($debt['name'] ?? 'Debt'), 0, 60));
+    $rawPay = $debt['payment'] ?? null;
+    $payment = ($rawPay === '' || $rawPay === null || !is_numeric($rawPay))
+        ? null
+        : money2(max(0, (float)$rawPay));
+    $every = (int)($debt['everyDays'] ?? 14);
+    if (!in_array($every, [7, 14, 30], true)) $every = 14;
     return [
         'id' => $id !== '' ? $id : 'debt',
         'name' => $name !== '' ? $name : 'Debt',
         'total' => money2(max(0, (float)($debt['total'] ?? 0))),
         'note' => trim(substr((string)($debt['note'] ?? ''), 0, 200)),
         'opened' => $opened,
+        'payment' => $payment,
+        'everyDays' => $every,
         'position' => $position,
         'payments' => is_array($debt['payments'] ?? null) ? $debt['payments'] : [],
     ];
@@ -215,7 +233,7 @@ function cleanPayment(array $payment, string $debtId): ?array {
 
 function saveDebts(PDO $db, $debts): void {
     $list = is_array($debts) ? $debts : [];
-    $insertDebt = $db->prepare('INSERT INTO debts (id, name, total, note, opened, position) VALUES (?, ?, ?, ?, ?, ?)');
+    $insertDebt = $db->prepare('INSERT INTO debts (id, name, total, note, opened, payment, every_days, position) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
     $insertPay = $db->prepare('INSERT INTO debt_payments (id, debt_id, day, amount, note) VALUES (?, ?, ?, ?, ?)');
     $db->beginTransaction();
     try {
@@ -228,7 +246,7 @@ function saveDebts(PDO $db, $debts): void {
             $row = cleanDebt($debt, $i);
             if (isset($seenDebts[$row['id']])) continue;
             $seenDebts[$row['id']] = true;
-            $insertDebt->execute([$row['id'], $row['name'], $row['total'], $row['note'], $row['opened'], $row['position']]);
+            $insertDebt->execute([$row['id'], $row['name'], $row['total'], $row['note'], $row['opened'], $row['payment'], $row['everyDays'], $row['position']]);
             foreach ($row['payments'] as $payment) {
                 if (!is_array($payment)) continue;
                 $pay = cleanPayment($payment, $row['id']);
@@ -278,12 +296,16 @@ function getState(PDO $db): array {
         foreach ($payments as $payment) $paid += $payment['amount'];
         $paid = money2($paid);
         $total = money2((float)$row['total']);
+        $payment = $row['payment'] === null || $row['payment'] === '' ? '' : money2((float)$row['payment']);
+        $everyDays = max(1, (int)($row['every_days'] ?? 14));
         $debts[] = [
             'id' => $row['id'],
             'name' => $row['name'],
             'total' => $total,
             'note' => (string)($row['note'] ?? ''),
             'opened' => $row['opened'],
+            'payment' => $payment,
+            'everyDays' => $everyDays,
             'paid' => $paid,
             'remaining' => money2(max(0, $total - $paid)),
             'payments' => $payments,

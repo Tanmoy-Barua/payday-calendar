@@ -89,6 +89,8 @@ export async function openDb(file) {
       total REAL NOT NULL,
       note TEXT NOT NULL DEFAULT '',
       opened TEXT NOT NULL,
+      payment REAL,
+      every_days INTEGER NOT NULL DEFAULT 14,
       position INTEGER NOT NULL DEFAULT 0
     );
     CREATE TABLE IF NOT EXISTS debt_payments (
@@ -101,7 +103,14 @@ export async function openDb(file) {
     CREATE INDEX IF NOT EXISTS debt_payments_debt ON debt_payments(debt_id);
   `)
   migrateCompany(db)
+  ensureDebtColumns(db)
   return db
+}
+
+function ensureDebtColumns(db) {
+  const cols = db.prepare('PRAGMA table_info(debts)').all().map(row => row.name)
+  if (!cols.includes('payment')) db.exec('ALTER TABLE debts ADD COLUMN payment REAL')
+  if (!cols.includes('every_days')) db.exec('ALTER TABLE debts ADD COLUMN every_days INTEGER NOT NULL DEFAULT 14')
 }
 
 function onCompanyThursdays(anchor) {
@@ -147,12 +156,16 @@ function money2(n) {
 function debtFromRow(row, payments) {
   const paid = money2(payments.reduce((sum, p) => sum + p.amount, 0))
   const total = money2(row.total)
+  const payment = row.payment == null || row.payment === '' ? '' : money2(row.payment)
+  const everyDays = Math.max(1, Number(row.every_days) || 14)
   return {
     id: row.id,
     name: row.name,
     total,
     note: row.note || '',
     opened: row.opened,
+    payment,
+    everyDays,
     paid,
     remaining: money2(Math.max(0, total - paid)),
     payments,
@@ -252,12 +265,21 @@ function nextMonth(ym) {
 
 function cleanDebt(debt, position) {
   const opened = /^\d{4}-\d{2}-\d{2}$/.test(debt.opened || '') ? debt.opened : '2026-10-01'
+  const rawPay = debt.payment
+  const payment = rawPay === '' || rawPay == null || Number.isNaN(Number(rawPay))
+    ? null
+    : money2(Math.max(0, Number(rawPay)))
+  const everyDays = [7, 14, 30].includes(Number(debt.everyDays))
+    ? Number(debt.everyDays)
+    : 14
   return {
     id: String(debt.id || '').slice(0, 40) || 'debt',
     name: String(debt.name || 'Debt').trim().slice(0, 60) || 'Debt',
     total: money2(Math.max(0, Number(debt.total) || 0)),
     note: String(debt.note || '').trim().slice(0, 200),
     opened,
+    payment,
+    everyDays,
     position,
     payments: Array.isArray(debt.payments) ? debt.payments : [],
   }
@@ -279,8 +301,8 @@ function cleanPayment(payment, debtId) {
 export function saveDebts(db, debts) {
   const list = Array.isArray(debts) ? debts : []
   const insertDebt = db.prepare(`
-    INSERT INTO debts (id, name, total, note, opened, position)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO debts (id, name, total, note, opened, payment, every_days, position)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `)
   const insertPay = db.prepare(`
     INSERT INTO debt_payments (id, debt_id, day, amount, note)
@@ -296,7 +318,7 @@ export function saveDebts(db, debts) {
       const row = cleanDebt(debt, i)
       if (seenDebts.has(row.id)) return
       seenDebts.add(row.id)
-      insertDebt.run(row.id, row.name, row.total, row.note, row.opened, row.position)
+      insertDebt.run(row.id, row.name, row.total, row.note, row.opened, row.payment, row.everyDays, row.position)
       for (const payment of row.payments) {
         const pay = cleanPayment(payment, row.id)
         if (!pay || seenPays.has(pay.id)) continue

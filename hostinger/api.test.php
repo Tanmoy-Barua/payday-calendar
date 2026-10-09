@@ -46,6 +46,8 @@ assert(handleRequest('PUT', 'months/nope', ['days' => []], $again)[0] === 400, '
         'total' => 1200,
         'note' => 'Monthly payment',
         'opened' => '2026-10-01',
+        'payment' => 200,
+        'everyDays' => 14,
         'payments' => [
             ['id' => 'p1', 'day' => '2026-10-06', 'amount' => 200, 'note' => 'First payment'],
             ['id' => 'p2', 'day' => '2026-10-15', 'amount' => 150, 'note' => ''],
@@ -55,6 +57,8 @@ assert(handleRequest('PUT', 'months/nope', ['days' => []], $again)[0] === 400, '
 assert($status === 200, 'save debts');
 [$status, $withDebt] = handleRequest('GET', 'state', null, openDb());
 assert($withDebt['debts'][0]['name'] === 'Car loan', 'debt name kept');
+assert($withDebt['debts'][0]['payment'] === 200.0, 'planned payment kept');
+assert($withDebt['debts'][0]['everyDays'] === 14, 'payment schedule kept');
 assert($withDebt['debts'][0]['paid'] === 350.0, 'debt paid sum');
 assert($withDebt['debts'][0]['remaining'] === 850.0, 'debt remaining');
 assert($withDebt['debts'][0]['payments'][0]['note'] === 'First payment', 'payment note kept');

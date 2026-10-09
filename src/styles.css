@@ -208,6 +208,10 @@ header .status{grid-column:1/-1;order:3}
 .debt-actions{display:flex;flex-wrap:wrap;gap:8px}
 .debt-edit{padding:10px 0;border-bottom:1px solid var(--line)}
 .debt-links{display:flex;flex-wrap:wrap;gap:8px}
+.debt-finish{margin-top:4px;padding-top:10px;border-top:1px solid var(--line);display:grid;gap:4px}
+.debt-finish .num{font-family:var(--display);font-weight:600;font-size:18px}
+.debt-finish.done .num{color:var(--accent)}
+.field select{border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--bg);width:100%}
 .note.bad{color:var(--danger)}
 
 [hidden]{display:none !important}
