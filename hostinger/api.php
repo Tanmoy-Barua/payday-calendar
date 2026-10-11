@@ -784,16 +784,22 @@ function unfoldIcs(string $text): string {
     return (string)preg_replace("/\n[ \t]/", '', $text);
 }
 
-function parseIcsDateValue(string $value): ?DateTimeImmutable {
+function parseIcsDateValue(string $value): ?array {
     $raw = trim($value);
     if (preg_match('/^(\d{4})(\d{2})(\d{2})$/', $raw, $m)) {
-        return new DateTimeImmutable(sprintf('%s-%s-%s 00:00:00', $m[1], $m[2], $m[3]));
+        return [
+            'dt' => new DateTimeImmutable(sprintf('%s-%s-%s 00:00:00', $m[1], $m[2], $m[3])),
+            'time' => null,
+        ];
     }
     if (preg_match('/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z?$/', $raw, $m)) {
-        return new DateTimeImmutable(sprintf(
-            '%s-%s-%s %s:%s:%s',
-            $m[1], $m[2], $m[3], $m[4], $m[5], $m[6]
-        ));
+        return [
+            'dt' => new DateTimeImmutable(sprintf(
+                '%s-%s-%s %s:%s:%s',
+                $m[1], $m[2], $m[3], $m[4], $m[5], $m[6]
+            )),
+            'time' => sprintf('%02d:%02d', (int)$m[4], (int)$m[5]),
+        ];
     }
     return null;
 }
@@ -835,9 +841,11 @@ function parseIcsEvents(string $text): array {
             if ($key === 'DTEND') $endRaw = $value;
             if ($key === 'DURATION') $durationRaw = $value;
         }
-        $start = parseIcsDateValue($startRaw);
-        if (!$start) continue;
-        $end = $endRaw !== '' ? parseIcsDateValue($endRaw) : null;
+        $startParsed = parseIcsDateValue($startRaw);
+        if (!$startParsed) continue;
+        $start = $startParsed['dt'];
+        $endParsed = $endRaw !== '' ? parseIcsDateValue($endRaw) : null;
+        $end = $endParsed['dt'] ?? null;
         $hours = 0.0;
         if ($end) {
             $hours = round(($end->getTimestamp() - $start->getTimestamp()) / 3600, 2);
@@ -848,6 +856,8 @@ function parseIcsEvents(string $text): array {
             }
         }
         if ($hours <= 0 || !$end) continue;
+        $startTime = $startParsed['time'] ?? $start->format('H:i');
+        $endTime = $endParsed['time'] ?? $end->format('H:i');
         $events[] = [
             'uid' => $uid !== '' ? $uid : ($start->format('c') . '-' . $hours),
             'day' => $start->format('Y-m-d'),
@@ -855,6 +865,8 @@ function parseIcsEvents(string $text): array {
             'summary' => $summary,
             'start' => $start->format(DateTimeInterface::ATOM),
             'end' => $end->format(DateTimeInterface::ATOM),
+            'startTime' => $startTime,
+            'endTime' => $endTime,
         ];
     }
     usort($events, fn($a, $b) => $a['day'] <=> $b['day']);

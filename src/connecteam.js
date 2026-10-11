@@ -112,6 +112,9 @@ export function applyConnecteamShifts(months, shifts, { jobId, rate } = {}) {
       hours: Number(shift.hours),
       amount: money2((Number(shift.hours) || 0) * hourly),
       source: 'connecteam',
+      startTime: shift.startTime || '',
+      endTime: shift.endTime || '',
+      summary: shift.summary || '',
     })
     days[shift.day] = list
     added += 1

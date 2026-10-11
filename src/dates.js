@@ -23,3 +23,23 @@ export const money = n => Number(n || 0).toLocaleString('en-US', { style: 'curre
 export const moneyShort = n => (n >= 1000 ? '$' + (n / 1000).toFixed(1) + 'k' : '$' + Math.round(n))
 export const hrs = n => (Math.round(n * 100) / 100) + 'h'
 export const uid = () => Math.random().toString(36).slice(2, 9)
+
+/** Format HH:mm wall-clock as 9:00 AM / 5:30 PM. */
+export function fmtTime(hhmm) {
+  const m = String(hhmm || '').trim().match(/^(\d{1,2}):(\d{2})$/)
+  if (!m) return ''
+  let h = Number(m[1])
+  const mins = m[2]
+  if (!Number.isFinite(h) || h < 0 || h > 23) return ''
+  const ap = h >= 12 ? 'PM' : 'AM'
+  h = h % 12 || 12
+  return mins === '00' ? `${h} ${ap}` : `${h}:${mins} ${ap}`
+}
+
+/** e.g. 9:00 AM – 5:00 PM */
+export function fmtShiftRange(startTime, endTime) {
+  const a = fmtTime(startTime)
+  const b = fmtTime(endTime)
+  if (!a || !b) return ''
+  return `${a} – ${b}`
+}

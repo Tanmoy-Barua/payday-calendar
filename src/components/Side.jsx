@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { P, add, fmtLong, fmtShort, hrs, localToday, money, uid } from '../dates.js'
+import { P, add, fmtLong, fmtShort, fmtShiftRange, hrs, localToday, money, uid } from '../dates.js'
 import { FREQ, payOnOrAfter, periodContaining } from '../pay.js'
 import { entriesOn, totals } from '../calc.js'
 import { jobColor } from './Cards.jsx'
@@ -91,7 +91,15 @@ function DayLog({ jobs, months, selected, today, flash, focusTick, onSelectDay, 
             return (
               <div className="entry" key={e.id}>
                 <span className="dot" style={{ background: jobColor(j) }} />
-                <span className="name">{j ? j.name : 'Removed schedule'}</span>
+                <span className="name">
+                  <span className="entry-title">{j ? j.name : 'Removed schedule'}</span>
+                  {e.startTime && e.endTime ? (
+                    <span className="entry-shift">{fmtShiftRange(e.startTime, e.endTime)}</span>
+                  ) : null}
+                  {e.summary && e.source === 'connecteam' ? (
+                    <span className="entry-summary">{e.summary}</span>
+                  ) : null}
+                </span>
                 <span className="num">{hrs(Number(e.hours) || 0)} · {money(Number(e.amount) || 0)}</span>
                 <button className="btn ghost danger" type="button" aria-label="Delete entry" onClick={() => onDelete(selected, e.id)}>✕</button>
               </div>

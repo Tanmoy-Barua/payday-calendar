@@ -30,8 +30,12 @@ test('parses Connecteam-style shift events into hours by day', () => {
   assert.equal(events.length, 2)
   assert.equal(events[0].day, '2026-10-10')
   assert.equal(events[0].hours, 8)
+  assert.equal(events[0].startTime, '09:00')
+  assert.equal(events[0].endTime, '17:00')
   assert.equal(events[1].day, '2026-10-11')
   assert.equal(events[1].hours, 8)
+  assert.equal(events[1].startTime, '13:00')
+  assert.equal(events[1].endTime, '21:00')
 })
 
 test('calendar URL allowlist accepts Connecteam/S3 https feeds only', () => {
@@ -92,6 +96,15 @@ END:VCALENDAR`)
   assert.equal(events.length, 1)
   assert.equal(events[0].day, '2026-10-12')
   assert.equal(events[0].hours, 8.5)
+})
+
+test('applyConnecteamShifts stores start and end clock times', () => {
+  const shifts = parseIcsEvents(SAMPLE)
+  const { months } = applyConnecteamShifts({}, shifts, { jobId: 'company', rate: 18 })
+  const entry = months['2026-10'].days['2026-10-10'][0]
+  assert.equal(entry.startTime, '09:00')
+  assert.equal(entry.endTime, '17:00')
+  assert.equal(entry.summary, 'Morning shift')
 })
 
 test('empty Connecteam feed does not wipe existing imported hours', () => {

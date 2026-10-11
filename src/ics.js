@@ -19,6 +19,15 @@ function splitProps(block) {
   return props
 }
 
+function clockFromParts(hs, mins) {
+  return `${String(hs).padStart(2, '0')}:${String(mins).padStart(2, '0')}`
+}
+
+function clockFromDate(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return ''
+  return clockFromParts(date.getHours(), date.getMinutes())
+}
+
 function parseIcsDate(value) {
   const raw = String(value || '').trim()
   if (!raw) return null
@@ -29,6 +38,7 @@ function parseIcsDate(value) {
     return {
       day: `${raw.slice(0, 4)}-${raw.slice(4, 6)}-${raw.slice(6, 8)}`,
       date: new Date(y, m - 1, d, 0, 0, 0),
+      time: null,
     }
   }
   const m = raw.match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})(Z)?$/)
@@ -37,7 +47,7 @@ function parseIcsDate(value) {
   const day = `${ys}-${ms}-${ds}`
   // Wall-clock components for duration; day comes from the ICS date itself.
   const date = new Date(+ys, +ms - 1, +ds, +hs, +mins, +ss)
-  return { day, date }
+  return { day, date, time: clockFromParts(hs, mins) }
 }
 
 function hoursBetween(start, end) {
@@ -81,6 +91,8 @@ export function parseIcsEvents(text) {
     }
     if (hours <= 0 || !endDate) continue
     const uid = String(props.UID?.value || `${start.day}-${hours}`).trim()
+    const startTime = start.time || clockFromDate(start.date)
+    const endTime = end?.time || clockFromDate(endDate)
     events.push({
       uid,
       day: start.day,
@@ -88,6 +100,8 @@ export function parseIcsEvents(text) {
       summary: String(props.SUMMARY?.value || 'Shift').replace(/\\,/g, ',').replace(/\\n/g, ' '),
       start: start.date.toISOString(),
       end: endDate.toISOString(),
+      startTime,
+      endTime,
     })
   }
   return events.sort((a, b) => (a.day < b.day ? -1 : a.day > b.day ? 1 : 0))

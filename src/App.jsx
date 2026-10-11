@@ -140,7 +140,7 @@ export default function App() {
         : ' Tip: set an hourly rate on this pay schedule so Calendar shows $ amounts (hours still count).'
       setConnecteamMessage(
         added
-          ? `Updated ${days} day${days === 1 ? '' : 's'} (${added} shift${added === 1 ? '' : 's'}) on ${job.name}. Open Calendar to review.${rateNote}`
+          ? `Updated ${days} day${days === 1 ? '' : 's'} (${added} shift${added === 1 ? '' : 's'}) on ${job.name}. Tap a day on Calendar to see start–end times.${rateNote}`
           : 'No shifts found in that calendar feed yet. Existing calendar hours were left unchanged.',
       )
     } catch (err) {

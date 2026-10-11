@@ -151,6 +151,8 @@ $parsed = parseIcsEvents($ics);
 assert(count($parsed) === 1, 'php ics one event');
 assert($parsed[0]['day'] === '2026-10-10', 'php ics day');
 assert($parsed[0]['hours'] === 8.0, 'php ics hours');
+assert(($parsed[0]['startTime'] ?? '') === '09:00', 'php ics start time');
+assert(($parsed[0]['endTime'] ?? '') === '17:00', 'php ics end time');
 assert(isAllowedCalendarUrl('https://s3.eu-central-1.amazonaws.com/onefid.content/x.ics') === true, 'php allow s3');
 assert(isAllowedCalendarUrl('https://127.0.0.1/x.ics') === false, 'php block loopback');
 

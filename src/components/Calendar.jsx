@@ -1,5 +1,5 @@
 import { useRef } from 'react'
-import { P, add, fmtLong, fmtMonth, hrs, money, moneyShort, ymd } from '../dates.js'
+import { P, add, fmtLong, fmtMonth, fmtTime, hrs, money, moneyShort, ymd } from '../dates.js'
 import { payOnOrAfter, periodFor } from '../pay.js'
 import { entriesOn } from '../calc.js'
 
@@ -77,6 +77,12 @@ export default function Calendar({ jobs, months, view, selected, filter, today, 
           const list = entriesOn(months, d).filter(e => !fj || e.job === fj.id)
           const amount = list.reduce((s, e) => s + (Number(e.amount) || 0), 0)
           const hours = list.reduce((s, e) => s + (Number(e.hours) || 0), 0)
+          const timed = list.filter(e => e.startTime && e.endTime)
+          const shiftLabel = timed.length === 1
+            ? `${fmtTime(timed[0].startTime)}–${fmtTime(timed[0].endTime)}`
+            : timed.length > 1
+              ? `${timed.length} shifts`
+              : ''
           const cls = ['day']
           if (d.slice(0, 7) !== view) cls.push('out')
           if (d === today) cls.push('isToday')
@@ -84,7 +90,10 @@ export default function Calendar({ jobs, months, view, selected, filter, today, 
           if (per && d >= per.start && d <= per.end) cls.push('inperiod')
           const pj = (pays[d] || []).filter(j => !fj || j.id === fj.id)
           if (pj.length) cls.push('isPayday')
-          const label = fmtLong(d) + (amount ? `, ${money(amount)}` : '') + (pj.length ? ', payday' : '')
+          const label = fmtLong(d)
+            + (shiftLabel ? `, ${shiftLabel}` : '')
+            + (amount ? `, ${money(amount)}` : '')
+            + (pj.length ? ', payday' : '')
           return (
             <button
               type="button"
@@ -94,6 +103,7 @@ export default function Calendar({ jobs, months, view, selected, filter, today, 
               onClick={() => onSelectDay(d)}
             >
               <span className="d">{P(d).getUTCDate()}</span>
+              {shiftLabel ? <span className="shift-time">{shiftLabel}</span> : null}
               {amount > 0 ? <span className="amt" style={{ color: 'var(--accent)' }}>{moneyShort(amount)}</span> : null}
               {hours > 0 ? <span className={`hrs${amount > 0 ? '' : ' hrs-only'}`}>{hrs(hours)}</span> : null}
               {pj.length ? (
