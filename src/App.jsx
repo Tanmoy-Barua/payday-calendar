@@ -364,32 +364,48 @@ export default function App() {
   }
 
   return (
-    <div className="wrap">
+    <div className={`wrap page-${page}`}>
       <header>
-        <div>
+        <div className="brand">
           <h1>Payday Calendar</h1>
           <p className="sub" id="todayLine">Today is {fmtTodayLine(today)}</p>
+        </div>
+        <div className="site-nav">
           <nav className="pager" aria-label="Pages">
-            <a href="#calendar" aria-current={page === 'calendar' ? 'page' : undefined}>Calendar</a>
-            <a href="#spend" aria-current={page === 'spend' ? 'page' : undefined}>Spending</a>
+            <a href="#calendar" aria-label="Calendar" aria-current={page === 'calendar' ? 'page' : undefined}>
+              <span className="nav-full" aria-hidden="true">Calendar</span>
+              <span className="nav-short" aria-hidden="true">Cal</span>
+            </a>
+            <a href="#spend" aria-label="Spending" aria-current={page === 'spend' ? 'page' : undefined}>
+              <span className="nav-full" aria-hidden="true">Spending</span>
+              <span className="nav-short" aria-hidden="true">Spend</span>
+            </a>
             <a href="#debt" aria-current={page === 'debt' ? 'page' : undefined}>Debt</a>
-            <a href="#checklist" aria-current={page === 'checklist' ? 'page' : undefined}>Checklist</a>
-            <a href="#settings" aria-current={page === 'settings' ? 'page' : undefined}>Settings</a>
+            <a href="#checklist" aria-label="Checklist" aria-current={page === 'checklist' ? 'page' : undefined}>
+              <span className="nav-full" aria-hidden="true">Checklist</span>
+              <span className="nav-short" aria-hidden="true">List</span>
+            </a>
+            <a href="#settings" aria-label="Settings" aria-current={page === 'settings' ? 'page' : undefined}>
+              <span className="nav-full" aria-hidden="true">Settings</span>
+              <span className="nav-short" aria-hidden="true">Set</span>
+            </a>
           </nav>
         </div>
-        <span className="status" id="status">{status}</span>
-        {page === 'calendar' ? (
-          <div className="hdr-actions">
-            <button className="btn" type="button" onClick={() => { setMode(jobs.length ? 'jobs' : 'jobform'); setEditingJob(null) }}>Pay schedules</button>
-            <button className="btn primary" type="button" onClick={() => { setView(today.slice(0, 7)); setSelected(today); setMode('day'); bumpFocus() }}>+ Log today</button>
-          </div>
-        ) : null}
         {lockOn && page !== 'settings' ? (
           <div className="hdr-lock">
             <button className="btn ghost" type="button" onClick={lockNow}>Lock now</button>
           </div>
         ) : null}
+        <span className="status" id="status">{status}</span>
       </header>
+      {page === 'calendar' ? (
+        <div className="hdr-actions">
+          <div className="hdr-actions-bar">
+            <button className="btn" type="button" onClick={() => { setMode(jobs.length ? 'jobs' : 'jobform'); setEditingJob(null) }}>Pay schedules</button>
+            <button className="btn primary" type="button" onClick={() => { setView(today.slice(0, 7)); setSelected(today); setMode('day'); bumpFocus() }}>+ Log today</button>
+          </div>
+        </div>
+      ) : null}
       {ready && page === 'spend' ? <Spend jobs={jobs} months={months} today={today} /> : null}
       {ready && page === 'debt' ? <Debt debts={debts} onSave={persistDebts} /> : null}
       {ready && page === 'checklist' ? (
