@@ -98,9 +98,13 @@ test('starting amount defaults to all companies over 2 weeks', () => {
   const note = applyPaycheckSource(defaultBudgetNote(), checks[0])
   assert.equal(note.starting, 415.04)
   assert.equal(note.jobId, ALL_COMPANIES_ID)
+  assert.equal(note.earningsSource, 'all')
   assert.match(note.paycheckLabel, /All companies/)
   const again = applyPaycheckSource({ ...note, starting: 2200 }, checks[0])
   assert.equal(again.starting, 415.04)
+  const oneJob = applyPaycheckSource(note, company)
+  assert.equal(oneJob.earningsSource, 'job')
+  assert.equal(oneJob.jobId, 'company')
 })
 
 test('checklist earnings follow Last 14 days when the schedule asks for it', () => {

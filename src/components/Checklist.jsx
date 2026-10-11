@@ -202,11 +202,15 @@ export default function Checklist({
     items: budget.items.map(normalizeBudgetItem),
   } : defaultBudgetNote()
   const paychecks = upcomingPaychecks(jobs, months, today)
-  const selected = paychecks.find(row => row.jobId === note.jobId && row.payday === note.paycheckDate)
-    || paychecks.find(row => row.jobId === note.jobId)
-    || paychecks.find(row => row.jobId === ALL_COMPANIES_ID)
-    || paychecks[0]
-    || null
+  const allCompanies = paychecks.find(row => row.jobId === ALL_COMPANIES_ID) || null
+  // Default to all-companies 2-week total. Only keep a single schedule if the user picked one.
+  const selected = note.earningsSource === 'job' && note.jobId && note.jobId !== ALL_COMPANIES_ID
+    ? (paychecks.find(row => row.jobId === note.jobId && row.payday === note.paycheckDate)
+      || paychecks.find(row => row.jobId === note.jobId)
+      || allCompanies
+      || paychecks[0]
+      || null)
+    : (allCompanies || paychecks[0] || null)
   // Starting amount always comes from the selected earnings window — not editable.
   const starting = selected ? selected.amount : 0
   const mainItems = note.items.filter(item => !item.separate)

@@ -275,6 +275,7 @@ export function applyPaycheckSource(budget, paycheck) {
     paycheckDate: paycheck.payday,
     paycheckLabel: paycheck.label,
     jobId: paycheck.jobId,
+    earningsSource: paycheck.jobId === ALL_COMPANIES_ID ? 'all' : 'job',
   }
 }
 
