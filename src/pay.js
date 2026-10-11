@@ -2,6 +2,7 @@ import { P, add, diff, lastDom, ymd } from './dates.js'
 import { totals, workDays, workShifts } from './calc.js'
 
 export const FREQ = {
+  daily: 'Every day',
   biweeklyThu: 'Every 2 weeks, paid Thursday of 3rd week',
   weekly: 'Every week',
   biweekly: 'Every 2 weeks',
@@ -13,6 +14,7 @@ export const lagOf = job => job.freq === 'biweeklyThu' ? (job.weekEnd === 'sat' 
 
 export function payOnOrAfter(job, s) {
   const a = job.anchor
+  if (job.freq === 'daily') return s
   if (job.freq === 'weekly' || job.freq === 'biweekly' || job.freq === 'biweeklyThu') {
     const step = job.freq === 'weekly' ? 7 : 14
     return add(a, Math.ceil(diff(a, s) / step) * step)
@@ -34,6 +36,7 @@ export function payOnOrAfter(job, s) {
 }
 
 export function payBefore(job, p) {
+  if (job.freq === 'daily') return add(p, -1)
   if (job.freq === 'weekly') return add(p, -7)
   if (job.freq === 'biweekly' || job.freq === 'biweeklyThu') return add(p, -14)
   const d = P(p)

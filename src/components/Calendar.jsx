@@ -21,6 +21,8 @@ export default function Calendar({ jobs, months, view, selected, filter, today, 
   const end = add(start, 41)
   const pays = {}
   for (const j of jobs) {
+    // Daily pay would mark every cell — skip the PAY badge noise.
+    if (j.freq === 'daily') continue
     let p = payOnOrAfter(j, start)
     let guard = 0
     while (p <= end && guard++ < 60) {

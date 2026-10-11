@@ -260,10 +260,16 @@ function JobForm({ jobs, editingJob, onCancel, onSave }) {
         </div>
         {freq !== 'semimonthly' ? (
           <div className="field">
-            <label className="label" htmlFor="jAnchor">{thu ? 'Your last payday (a Thursday)' : 'A payday (past or next)'}</label>
+            <label className="label" htmlFor="jAnchor">
+              {thu ? 'Your last payday (a Thursday)' : freq === 'daily' ? 'Any work day (used as a reference)' : 'A payday (past or next)'}
+            </label>
             <input id="jAnchor" type="date" value={anchor} required onChange={ev => setAnchor(ev.target.value)} />
             <div className="hint" style={notThu ? { color: 'var(--danger)' } : undefined}>
-              {notThu ? 'That date is not a Thursday. Pick the Thursday you were paid.' : 'Any real payday works. The calendar repeats it on your schedule.'}
+              {notThu
+                ? 'That date is not a Thursday. Pick the Thursday you were paid.'
+                : freq === 'daily'
+                  ? 'Daily pay treats each calendar day as its own paycheck for that day’s hours.'
+                  : 'Any real payday works. The calendar repeats it on your schedule.'}
             </div>
           </div>
         ) : null}

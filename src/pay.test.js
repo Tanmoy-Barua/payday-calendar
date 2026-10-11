@@ -23,6 +23,23 @@ test('saturday week end delays the check by 5 days', () => {
   assert.equal(per.end, '2026-10-10')
 })
 
+test('daily pay treats each day as its own paycheck', () => {
+  const job = { id: 'gig', name: 'Daily gig', freq: 'daily', anchor: '2026-10-01', lag: 0 }
+  assert.equal(payOnOrAfter(job, '2026-10-11'), '2026-10-11')
+  assert.equal(payBefore(job, '2026-10-11'), '2026-10-10')
+  assert.deepEqual(periodFor(job, '2026-10-11'), {
+    start: '2026-10-11',
+    end: '2026-10-11',
+    payday: '2026-10-11',
+  })
+  const lagJob = { ...job, lag: 1 }
+  assert.deepEqual(periodFor(lagJob, '2026-10-11'), {
+    start: '2026-10-10',
+    end: '2026-10-10',
+    payday: '2026-10-11',
+  })
+})
+
 test('workDays counts unique days with hours, matching totals range scan', () => {
   const months = {
     '2026-09': {
