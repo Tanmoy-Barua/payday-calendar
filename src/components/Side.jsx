@@ -219,7 +219,7 @@ function JobForm({ jobs, editingJob, onCancel, onSave }) {
   const [weekEnd, setWeekEnd] = useState(existing?.weekEnd === 'sat' ? 'sat' : 'sun')
   const [lag, setLag] = useState(existing?.lag || 0)
   const [rate, setRate] = useState(existing?.rate ?? '')
-  const [color, setColor] = useState(Number(existing?.color ?? (jobs.length % 6)))
+  const [color, setColor] = useState(Number(existing?.color ?? (jobs.length % 7)))
 
   useEffect(() => { nameRef.current?.focus() }, [])
 

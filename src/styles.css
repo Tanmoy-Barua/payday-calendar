@@ -2,7 +2,7 @@
 :root{
   --bg:#f3f5f4; --surface:#ffffff; --ink:#14211d; --muted:#5d6e68; --line:#dbe3e0;
   --accent:#0d7a5f; --accent-soft:#dff1ea; --pay:#c2700a; --pay-soft:#fdf0dc; --danger:#b4372d;
-  --j0:#0d7a5f; --j1:#2f5fd0; --j2:#b0428f; --j3:#c2700a; --j4:#6d4fc2; --j5:#2a8a9c;
+  --j0:#0d7a5f; --j1:#2f5fd0; --j2:#b0428f; --j3:#c2700a; --j4:#6d4fc2; --j5:#2a8a9c; --j6:#1a1a1a;
   --display:"Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;
   --body:"Figtree",ui-sans-serif,system-ui,sans-serif;
   --mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
