@@ -144,6 +144,8 @@ form{display:grid;gap:10px}
 .settings-choice .note{display:block;margin-top:2px}
 .settings-status{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin:12px 0}
 .settings-actions{display:flex;flex-wrap:wrap;gap:8px}
+.settings .field{margin-top:10px}
+.settings .field input[type="url"]{width:100%;min-height:44px;border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--bg)}
 .spend{display:grid;gap:12px}
 .spend .field{max-width:min(240px,100%)}
 .bar{display:flex;height:12px;border-radius:999px;overflow:hidden;background:var(--line)}

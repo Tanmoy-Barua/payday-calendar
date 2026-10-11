@@ -79,3 +79,10 @@ export function saveDebts(debts) {
 export function saveBudget(budget) {
   return send('/api/budget', { budget })
 }
+
+export function fetchCalendarFeed(url) {
+  return request('/api/calendar/fetch', {
+    method: 'POST',
+    body: JSON.stringify({ url }),
+  })
+}

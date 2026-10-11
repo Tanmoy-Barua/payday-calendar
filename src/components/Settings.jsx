@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { THEME_OPTIONS, formatIdleLabel } from '../settings.js'
 import { lockLabel, lockSupported } from '../lock.js'
 
@@ -7,7 +8,15 @@ export default function Settings({
   lockOn,
   lockBusy,
   idleMs,
+  jobs = [],
   jobsCount,
+  connecteamUrl,
+  connecteamJobId,
+  connecteamBusy,
+  connecteamMessage,
+  onConnecteamUrlChange,
+  onConnecteamJobChange,
+  onSyncConnecteam,
   onStartLockSetup,
   onLockNow,
   onTurnOffLock,
@@ -15,6 +24,7 @@ export default function Settings({
 }) {
   const faceLabel = lockLabel()
   const faceOk = lockSupported()
+  const [urlDraft, setUrlDraft] = useState(connecteamUrl || '')
 
   return (
     <div className="settings">
@@ -47,6 +57,57 @@ export default function Settings({
             </label>
           ))}
         </div>
+      </section>
+
+      <section className="card">
+        <div className="label">Connecteam</div>
+        <h3>Import your work schedule</h3>
+        <p className="note">
+          In Connecteam → Settings → calendar sync, copy the private calendar URL, paste it here, then sync.
+          Shifts become hours on your calendar for the pay schedule you pick. Manual logs are kept.
+        </p>
+        <label className="field">
+          <span className="label">Connecteam calendar URL</span>
+          <input
+            type="url"
+            inputMode="url"
+            autoComplete="off"
+            spellCheck={false}
+            placeholder="https://s3…amazonaws.com/… (from Connecteam Copy)"
+            value={urlDraft}
+            onChange={ev => setUrlDraft(ev.target.value)}
+            onBlur={() => onConnecteamUrlChange?.(urlDraft)}
+          />
+        </label>
+        <label className="field">
+          <span className="label">Attach shifts to pay schedule</span>
+          <select
+            value={connecteamJobId || ''}
+            onChange={ev => onConnecteamJobChange?.(ev.target.value)}
+            disabled={!jobs.length}
+          >
+            {!jobs.length ? <option value="">Add a pay schedule first</option> : null}
+            {jobs.map(job => (
+              <option key={job.id} value={job.id}>
+                {job.name}{job.rate ? ` · $${Number(job.rate).toFixed(2)}/h` : ''}
+              </option>
+            ))}
+          </select>
+        </label>
+        <div className="settings-actions">
+          <button
+            className="btn primary"
+            type="button"
+            disabled={connecteamBusy || !jobs.length}
+            onClick={() => {
+              onConnecteamUrlChange?.(urlDraft)
+              onSyncConnecteam?.(urlDraft)
+            }}
+          >
+            {connecteamBusy ? 'Syncing…' : 'Sync shifts now'}
+          </button>
+        </div>
+        {connecteamMessage ? <p className="note">{connecteamMessage}</p> : null}
       </section>
 
       <section className="card">

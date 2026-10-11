@@ -41,3 +41,7 @@ If `HOSTINGER_API_TOKEN` is unset, the script exits and does not publish.
 ## If publish fails with “token missing”
 
 The GitHub secret is empty or was never added. Repeat the one-time setup above, then re-run the workflow. Do not paste the token into code to “fix” it.
+
+## Connecteam calendar URL
+
+The Connecteam personal calendar link is private to you. Paste it only in the live app under **Settings → Connecteam**. Never commit that URL to git or put it in a pull request.

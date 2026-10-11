@@ -12,6 +12,7 @@ import {
   setupLock,
   touchAuth,
 } from './auth.js'
+import { isAllowedCalendarUrl, parseIcsEvents } from '../src/ics.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const root = path.join(__dirname, '..')
@@ -102,6 +103,39 @@ app.put('/api/budget', (req, res) => {
     res.json({ ok: true })
   } catch (err) {
     res.status(400).json({ error: err.message || 'Could not save' })
+  }
+})
+
+app.post('/api/calendar/fetch', async (req, res) => {
+  if (!requireAuth(db, req, res)) return
+  const url = String(req.body?.url || '').trim()
+  if (!isAllowedCalendarUrl(url)) {
+    res.status(400).json({ error: 'Paste the https Connecteam calendar URL from Connecteam Settings.' })
+    return
+  }
+  try {
+    const upstream = await fetch(url, {
+      redirect: 'follow',
+      headers: { Accept: 'text/calendar, text/plain, */*' },
+      signal: AbortSignal.timeout(15_000),
+    })
+    if (!upstream.ok) {
+      res.status(502).json({ error: `Connecteam calendar returned ${upstream.status}` })
+      return
+    }
+    const text = await upstream.text()
+    if (text.length > 2_000_000) {
+      res.status(400).json({ error: 'Calendar file is too large' })
+      return
+    }
+    if (!/BEGIN:VCALENDAR/i.test(text) && !/BEGIN:VEVENT/i.test(text)) {
+      res.status(400).json({ error: 'That link did not return a calendar feed' })
+      return
+    }
+    const shifts = parseIcsEvents(text)
+    res.json({ ok: true, count: shifts.length, shifts })
+  } catch (err) {
+    res.status(502).json({ error: err.message || 'Could not download calendar' })
   }
 })
 

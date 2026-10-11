@@ -764,6 +764,106 @@ function jsonBody($value): string {
     return json_encode($value, JSON_UNESCAPED_SLASHES);
 }
 
+function isAllowedCalendarUrl(string $url): bool {
+    $parts = parse_url($url);
+    if (!is_array($parts)) return false;
+    if (($parts['scheme'] ?? '') !== 'https') return false;
+    $host = strtolower((string)($parts['host'] ?? ''));
+    if ($host === '' || $host === 'localhost' || str_starts_with($host, '127.') || str_starts_with($host, '10.')) return false;
+    if (str_starts_with($host, '192.168.') || preg_match('/^172\.(1[6-9]|2\d|3[01])\./', $host)) return false;
+    $path = strtolower((string)($parts['path'] ?? ''));
+    if (str_contains($host, 'amazonaws.com')) return true;
+    if (str_contains($host, 'connecteam.com')) return true;
+    if (str_contains($host, 'onefid.')) return true;
+    if (str_ends_with($path, '.ics')) return true;
+    return false;
+}
+
+function unfoldIcs(string $text): string {
+    $text = str_replace("\r\n", "\n", $text);
+    return (string)preg_replace("/\n[ \t]/", '', $text);
+}
+
+function parseIcsDateValue(string $value): ?DateTimeImmutable {
+    $raw = trim($value);
+    if (preg_match('/^(\d{4})(\d{2})(\d{2})$/', $raw, $m)) {
+        return new DateTimeImmutable(sprintf('%s-%s-%s 00:00:00', $m[1], $m[2], $m[3]));
+    }
+    if (preg_match('/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z?$/', $raw, $m)) {
+        return new DateTimeImmutable(sprintf(
+            '%s-%s-%s %s:%s:%s',
+            $m[1], $m[2], $m[3], $m[4], $m[5], $m[6]
+        ));
+    }
+    return null;
+}
+
+function parseIcsEvents(string $text): array {
+    $unfolded = unfoldIcs($text);
+    if (!preg_match_all('/BEGIN:VEVENT(.*?)END:VEVENT/si', $unfolded, $blocks)) return [];
+    $events = [];
+    foreach ($blocks[1] as $block) {
+        $uid = '';
+        $summary = 'Shift';
+        $startRaw = '';
+        $endRaw = '';
+        foreach (explode("\n", $block) as $line) {
+            if ($line === '' || str_starts_with($line, 'BEGIN:') || str_starts_with($line, 'END:')) continue;
+            $colon = strpos($line, ':');
+            if ($colon === false) continue;
+            $left = substr($line, 0, $colon);
+            $value = substr($line, $colon + 1);
+            $key = strtoupper(strpos($left, ';') === false ? $left : strstr($left, ';', true));
+            if ($key === 'UID') $uid = trim($value);
+            if ($key === 'SUMMARY') $summary = str_replace(['\\,', '\\n'], [',', ' '], trim($value));
+            if ($key === 'DTSTART') $startRaw = $value;
+            if ($key === 'DTEND') $endRaw = $value;
+        }
+        $start = parseIcsDateValue($startRaw);
+        $end = parseIcsDateValue($endRaw);
+        if (!$start || !$end) continue;
+        $hours = round(($end->getTimestamp() - $start->getTimestamp()) / 3600, 2);
+        if ($hours <= 0) continue;
+        $events[] = [
+            'uid' => $uid !== '' ? $uid : ($start->format('c') . '-' . $hours),
+            'day' => $start->format('Y-m-d'),
+            'hours' => $hours,
+            'summary' => $summary,
+            'start' => $start->format(DateTimeInterface::ATOM),
+            'end' => $end->format(DateTimeInterface::ATOM),
+        ];
+    }
+    usort($events, fn($a, $b) => $a['day'] <=> $b['day']);
+    return $events;
+}
+
+function fetchCalendarFeed(string $url): array {
+    if (!isAllowedCalendarUrl($url)) {
+        throw new InvalidArgumentException('Paste the https Connecteam calendar URL from Connecteam Settings.');
+    }
+    $ctx = stream_context_create([
+        'http' => [
+            'method' => 'GET',
+            'timeout' => 15,
+            'header' => "Accept: text/calendar, text/plain, */*\r\n",
+            'follow_location' => 1,
+        ],
+        'ssl' => ['verify_peer' => true, 'verify_peer_name' => true],
+    ]);
+    $text = @file_get_contents($url, false, $ctx);
+    if ($text === false) {
+        throw new RuntimeException('Could not download calendar');
+    }
+    if (strlen($text) > 2000000) {
+        throw new InvalidArgumentException('Calendar file is too large');
+    }
+    if (!preg_match('/BEGIN:VCALENDAR/i', $text) && !preg_match('/BEGIN:VEVENT/i', $text)) {
+        throw new InvalidArgumentException('That link did not return a calendar feed');
+    }
+    $shifts = parseIcsEvents($text);
+    return ['ok' => true, 'count' => count($shifts), 'shifts' => $shifts];
+}
+
 function handleRequest(string $method, string $route, $payload, PDO $db, array $cookies = [], ?bool $secure = null): array {
     $secure = $secure ?? isHttpsRequest();
     try {
@@ -805,6 +905,14 @@ function handleRequest(string $method, string $route, $payload, PDO $db, array $
         if ($method === 'PUT' && $route === 'budget') {
             saveBudget($db, is_array($payload) ? ($payload['budget'] ?? []) : []);
             return [200, ['ok' => true], $touchCookies];
+        }
+        if ($method === 'POST' && $route === 'calendar/fetch') {
+            $url = is_array($payload) ? (string)($payload['url'] ?? '') : '';
+            try {
+                return [200, fetchCalendarFeed($url), $touchCookies];
+            } catch (RuntimeException $err) {
+                return [502, ['error' => $err->getMessage()], $touchCookies];
+            }
         }
         return [404, ['error' => 'not found'], []];
     } catch (InvalidArgumentException $err) {

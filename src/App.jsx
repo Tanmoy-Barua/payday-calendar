@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { fmtTodayLine, hrs, localToday, money, fmtShort } from './dates.js'
 import {
   disableAuth,
+  fetchCalendarFeed,
   loadAuthStatus,
   loadState,
   logoutAuth,
@@ -12,6 +13,13 @@ import {
   setupAuth,
   touchAuth,
 } from './api.js'
+import {
+  applyConnecteamShifts,
+  loadConnecteamJobId,
+  loadConnecteamUrl,
+  saveConnecteamJobId,
+  saveConnecteamUrl,
+} from './connecteam.js'
 import {
   clearUnlocked,
   disableLock,
@@ -64,12 +72,73 @@ export default function App() {
   const [lockBusy, setLockBusy] = useState(false)
   const [idleMs, setIdleMs] = useState(DEFAULT_IDLE_MS)
   const [theme, setTheme] = useState(() => loadTheme())
+  const [connecteamUrl, setConnecteamUrl] = useState(() => loadConnecteamUrl())
+  const [connecteamJobId, setConnecteamJobId] = useState(() => loadConnecteamJobId())
+  const [connecteamBusy, setConnecteamBusy] = useState(false)
+  const [connecteamMessage, setConnecteamMessage] = useState('')
   const unlockingRef = useRef(false)
   const idleTimerRef = useRef(null)
   const lastTouchRef = useRef(0)
 
   function changeTheme(next) {
     setTheme(applyTheme(next))
+  }
+
+  function changeConnecteamUrl(next) {
+    try {
+      const saved = saveConnecteamUrl(next)
+      setConnecteamUrl(saved)
+      setConnecteamMessage(saved ? 'Calendar link saved on this phone.' : 'Calendar link cleared.')
+    } catch (err) {
+      setConnecteamMessage(err.message || 'Could not save calendar link')
+    }
+  }
+
+  function changeConnecteamJob(jobId) {
+    setConnecteamJobId(saveConnecteamJobId(jobId))
+  }
+
+  async function syncConnecteam(urlOverride) {
+    const url = String(urlOverride ?? connecteamUrl).trim()
+    const jobId = connecteamJobId || jobs[0]?.id || ''
+    if (!jobId) {
+      setConnecteamMessage('Add a pay schedule first, then sync.')
+      return
+    }
+    if (!connecteamJobId && jobs[0]?.id) changeConnecteamJob(jobs[0].id)
+    setConnecteamBusy(true)
+    setConnecteamMessage('Downloading Connecteam calendar…')
+    try {
+      if (url) saveConnecteamUrl(url)
+      setConnecteamUrl(url)
+      const data = await fetchCalendarFeed(url)
+      const shifts = data.shifts || []
+      const job = jobs.find(j => j.id === jobId) || jobs[0]
+      const { months: nextMonths, added } = applyConnecteamShifts(months, shifts, {
+        jobId: job.id,
+        rate: job.rate,
+      })
+      setMonths(nextMonths)
+      const monthKeys = new Set([
+        ...Object.keys(months || {}),
+        ...Object.keys(nextMonths || {}),
+      ])
+      setStatus('Saving…')
+      for (const mk of monthKeys) {
+        await saveMonth(mk, nextMonths[mk]?.days || {})
+      }
+      setStatus('Saved')
+      setConnecteamMessage(
+        added
+          ? `Imported ${added} shift${added === 1 ? '' : 's'} into ${job.name}. Open Calendar to review.`
+          : 'No shifts found in that calendar feed yet.',
+      )
+    } catch (err) {
+      setConnecteamMessage(err.message || 'Could not sync Connecteam calendar')
+      setStatus('Could not save, try again')
+    } finally {
+      setConnecteamBusy(false)
+    }
   }
 
   function clearPrivateData(message = 'Locked') {
@@ -426,7 +495,15 @@ export default function App() {
           lockOn={lockOn}
           lockBusy={lockBusy}
           idleMs={idleMs}
+          jobs={jobs}
           jobsCount={jobs.length}
+          connecteamUrl={connecteamUrl}
+          connecteamJobId={connecteamJobId || jobs[0]?.id || ''}
+          connecteamBusy={connecteamBusy}
+          connecteamMessage={connecteamMessage}
+          onConnecteamUrlChange={changeConnecteamUrl}
+          onConnecteamJobChange={changeConnecteamJob}
+          onSyncConnecteam={syncConnecteam}
           onStartLockSetup={startLockSetup}
           onLockNow={lockNow}
           onTurnOffLock={turnOffLock}

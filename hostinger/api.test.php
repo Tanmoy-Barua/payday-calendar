@@ -146,5 +146,13 @@ assert($disabled['lockEnabled'] === false, 'lock disabled');
 [$status, $openAgain] = handleRequest('GET', 'state', null, openDb(), [], false);
 assert($status === 200, 'open again after disable');
 
+$ics = "BEGIN:VCALENDAR\nBEGIN:VEVENT\nUID:t1\nDTSTART:20261010T090000\nDTEND:20261010T170000\nSUMMARY:Shift\nEND:VEVENT\nEND:VCALENDAR\n";
+$parsed = parseIcsEvents($ics);
+assert(count($parsed) === 1, 'php ics one event');
+assert($parsed[0]['day'] === '2026-10-10', 'php ics day');
+assert($parsed[0]['hours'] === 8.0, 'php ics hours');
+assert(isAllowedCalendarUrl('https://s3.eu-central-1.amazonaws.com/onefid.content/x.ics') === true, 'php allow s3');
+assert(isAllowedCalendarUrl('https://127.0.0.1/x.ics') === false, 'php block loopback');
+
 echo "php api ok\n";
 @unlink($file);
