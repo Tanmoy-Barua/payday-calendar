@@ -1,6 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
+  ALL_COMPANIES_ID,
   applyPaycheckSource,
   closePaycheckBudget,
   defaultBudgetNote,
@@ -45,15 +46,31 @@ test('running steps match the corrected notepad chain', () => {
   assert.equal(remaining, 74)
 })
 
-test('starting amount is taken from the next paycheck source', () => {
-  const jobs = [{
-    id: 'company',
-    name: 'APS-SECURITY COMPANY',
-    freq: 'biweeklyThu',
-    anchor: '2026-10-01',
-    weekEnd: 'sun',
-    lag: 0,
-  }]
+test('starting amount defaults to all companies over 2 weeks', () => {
+  const jobs = [
+    {
+      id: 'company',
+      name: 'APS-SECURITY COMPANY',
+      freq: 'biweeklyThu',
+      anchor: '2026-10-01',
+      weekEnd: 'sun',
+      lag: 0,
+    },
+    {
+      id: 'flex',
+      name: 'Amazon Flex',
+      freq: 'weekly',
+      anchor: '2026-10-08',
+      cardTotal: 'month',
+    },
+    {
+      id: 'uber',
+      name: 'Uber',
+      freq: 'daily',
+      anchor: '2026-10-01',
+      cardTotal: 'month',
+    },
+  ]
   const months = {
     '2026-09': {
       days: {
@@ -61,21 +78,29 @@ test('starting amount is taken from the next paycheck source', () => {
         '2026-09-29': [{ id: 'b', job: 'company', hours: 8, amount: 147.52 }],
       },
     },
+    '2026-10': {
+      days: {
+        '2026-10-05': [{ id: 'c', job: 'flex', hours: 0, amount: 80 }],
+        '2026-10-08': [{ id: 'd', job: 'uber', hours: 0, amount: 40 }],
+      },
+    },
   }
-  const checks = upcomingPaychecks(jobs, months, '2026-10-09')
-  assert.equal(checks[0].payday, '2026-10-15')
-  assert.equal(checks[0].amount, 295.04)
+  const checks = upcomingPaychecks(jobs, months, '2026-10-11')
+  assert.equal(checks[0].jobId, ALL_COMPANIES_ID)
+  assert.equal(checks[0].range.span, 14)
   assert.equal(checks[0].range.start, '2026-09-28')
   assert.equal(checks[0].range.end, '2026-10-11')
-  assert.equal(checks[0].range.span, 14)
-  assert.match(checks[0].label, /2 weeks/)
+  assert.equal(checks[0].amount, 415.04)
+  assert.match(checks[0].label, /All companies · 2 weeks/)
+  const company = checks.find(row => row.jobId === 'company')
+  assert.equal(company.payday, '2026-10-15')
+  assert.equal(company.amount, 295.04)
   const note = applyPaycheckSource(defaultBudgetNote(), checks[0])
-  assert.equal(note.starting, 295.04)
-  assert.equal(note.paycheckDate, '2026-10-15')
-  assert.match(note.paycheckLabel, /APS-SECURITY COMPANY/)
-  // Locked starting always mirrors paycheck amount when re-applied
+  assert.equal(note.starting, 415.04)
+  assert.equal(note.jobId, ALL_COMPANIES_ID)
+  assert.match(note.paycheckLabel, /All companies/)
   const again = applyPaycheckSource({ ...note, starting: 2200 }, checks[0])
-  assert.equal(again.starting, 295.04)
+  assert.equal(again.starting, 415.04)
 })
 
 test('checklist earnings follow Last 14 days when the schedule asks for it', () => {
@@ -95,8 +120,11 @@ test('checklist earnings follow Last 14 days when the schedule asks for it', () 
     },
   }
   const checks = upcomingPaychecks(jobs, months, '2026-10-11')
-  assert.equal(checks[0].range.span, 14)
-  assert.equal(checks[0].range.start, '2026-09-28')
+  const flex = checks.find(row => row.jobId === 'flex')
+  assert.equal(flex.range.span, 14)
+  assert.equal(flex.range.start, '2026-09-28')
+  assert.equal(flex.amount, 130)
+  assert.equal(checks[0].jobId, ALL_COMPANIES_ID)
   assert.equal(checks[0].amount, 130)
 })
 

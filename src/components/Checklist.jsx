@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { fmtShort, localToday, money } from '../dates.js'
 import {
+  ALL_COMPANIES_ID,
   ITEM_CATEGORIES,
   applyPaycheckSource,
   closePaycheckBudget,
@@ -203,9 +204,10 @@ export default function Checklist({
   const paychecks = upcomingPaychecks(jobs, months, today)
   const selected = paychecks.find(row => row.jobId === note.jobId && row.payday === note.paycheckDate)
     || paychecks.find(row => row.jobId === note.jobId)
+    || paychecks.find(row => row.jobId === ALL_COMPANIES_ID)
     || paychecks[0]
     || null
-  // Starting amount always comes from the selected next paycheck — not editable.
+  // Starting amount always comes from the selected earnings window — not editable.
   const starting = selected ? selected.amount : 0
   const mainItems = note.items.filter(item => !item.separate)
   const otherItems = note.items.filter(item => item.separate)
@@ -269,7 +271,7 @@ export default function Checklist({
         <div className="label">Notepad</div>
         <h2>{note.title || 'Budget Note'}</h2>
         <p className="note">
-          Starting amount is locked to what you earned in that schedule’s work window (about 2 weeks for biweekly pay). Set a payment category to Debt to pick a debt name — when you mark it paid, that amount is deducted on the Debt page.
+          Starting amount defaults to what you earned from every company in the last 2 weeks. You can still pick one schedule if you want only that job. Set a payment category to Debt to pick a debt name — when you mark it paid, that amount is deducted on the Debt page.
         </p>
 
         <div className="paycheck-source">
@@ -283,7 +285,9 @@ export default function Checklist({
               {!paychecks.length ? <option value="">Add a pay schedule first</option> : null}
               {paychecks.map(row => (
                 <option key={row.jobId} value={row.jobId}>
-                  {row.jobName} · {row.range?.span === 14 ? '2 weeks' : `${row.range?.span || '?'} days`} {fmtShort(row.range?.start)}–{fmtShort(row.range?.end)} · {money(row.amount)}
+                  {row.jobId === ALL_COMPANIES_ID
+                    ? `All companies · 2 weeks ${fmtShort(row.range?.start)}–${fmtShort(row.range?.end)} · ${money(row.amount)}`
+                    : `${row.jobName} · ${row.range?.span === 14 ? '2 weeks' : `${row.range?.span || '?'} days`} ${fmtShort(row.range?.start)}–${fmtShort(row.range?.end)} · ${money(row.amount)}`}
                 </option>
               ))}
             </select>
@@ -295,9 +299,9 @@ export default function Checklist({
           </div>
           {selected ? (
             <p className="note">
-              Starting amount is your total earned {selected.range?.span === 14 ? 'in those 2 weeks' : 'in this window'}
-              {selected.payday ? ` · payday ${fmtShort(selected.payday)}` : ''}.
-              Change “Top card total shows” on the pay schedule to use month or last 14 days instead.
+              {selected.jobId === ALL_COMPANIES_ID
+                ? 'Starting amount is the total earned from all companies in those 2 weeks.'
+                : `Starting amount is your total earned ${selected.range?.span === 14 ? 'in those 2 weeks' : 'in this window'}${selected.payday ? ` · payday ${fmtShort(selected.payday)}` : ''}.`}
             </p>
           ) : (
             <p className="note">Add a pay schedule so the starting amount can follow your earnings.</p>
@@ -309,9 +313,11 @@ export default function Checklist({
             <div className="label">Starting amount</div>
             <div className="checklist-remain num" aria-live="polite">{money(starting)}</div>
             <p className="note">
-              {selected?.range
-                ? `${selected.range.span === 14 ? '2-week' : `${selected.range.span}-day`} total · not editable`
-                : 'From pay period · not editable'}
+              {selected?.jobId === ALL_COMPANIES_ID
+                ? 'All companies · 2-week total · not editable'
+                : selected?.range
+                  ? `${selected.range.span === 14 ? '2-week' : `${selected.range.span}-day`} total · not editable`
+                  : 'From pay period · not editable'}
             </p>
           </div>
           <div>
