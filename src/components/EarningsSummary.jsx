@@ -20,23 +20,18 @@ export default function EarningsSummary({ months, view, today, filter, jobs }) {
   const ym = view || today.slice(0, 7)
   const [y, m] = ym.split('-').map(Number)
   const month = monthRange(ym)
-  const halves = halfMonthRanges(ym)
+  const first = halfMonthRanges(ym).first
   const jobId = filter || ''
   const jobName = jobId ? jobs.find(j => j.id === jobId)?.name : ''
   const monthSum = totals(months, month.start, month.end, jobId)
   const monthDays = workDays(months, month.start, month.end, jobId)
-  const first = halves.first
-  const second = halves.second
   const firstSum = first ? totals(months, first.start, first.end, jobId) : { h: 0, a: 0 }
   const firstDays = first ? workDays(months, first.start, first.end, jobId) : 0
-  const secondSum = second ? totals(months, second.start, second.end, jobId) : { h: 0, a: 0 }
-  const secondDays = second ? workDays(months, second.start, second.end, jobId) : 0
   const todayDom = today.slice(0, 7) === ym ? Number(today.slice(8, 10)) : 0
   const firstCurrent = todayDom > 0 && todayDom <= 15
-  const secondCurrent = todayDom > 15
 
   return (
-    <section className="panel earnings-summary" aria-label="Monthly and half-month earnings">
+    <section className="panel earnings-summary" aria-label="Monthly and 15-day earnings">
       <div className="earn-head">
         <div>
           <div className="label">Earnings</div>
@@ -62,15 +57,6 @@ export default function EarningsSummary({ months, view, today, filter, jobs }) {
             sum={firstSum}
             days={firstDays}
             highlight={firstCurrent}
-          />
-        ) : null}
-        {second ? (
-          <EarnCard
-            label="Second half"
-            rangeNote={`${fmtShort(second.start)} – ${fmtShort(second.end)}${secondCurrent ? ' · current' : ''}`}
-            sum={secondSum}
-            days={secondDays}
-            highlight={secondCurrent}
           />
         ) : null}
       </div>
