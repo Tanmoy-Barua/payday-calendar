@@ -327,8 +327,10 @@ select{text-overflow:ellipsis}
   .paycheck-source{padding:12px;border-radius:12px}
   .paycheck-actions{display:grid;grid-template-columns:1fr;gap:8px}
   .paycheck-actions .btn{width:100%}
-  .past-row{grid-template-columns:1fr;gap:10px}
-  .past-stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .past-row{grid-template-columns:1fr;gap:12px}
+  .past-side{justify-items:start;text-align:left}
+  .past-meta{width:100%;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px 12px}
+  .past-meta > div{justify-items:start}
   .check-row{gap:6px;padding:7px 0}
   .check-fields{grid-template-columns:4.75rem minmax(0,1fr) 3.5rem;gap:6px}
   .check-fields:not(:has(.check-category)):not(:has(.check-debt)){grid-template-columns:minmax(0,1fr) 3.5rem}
