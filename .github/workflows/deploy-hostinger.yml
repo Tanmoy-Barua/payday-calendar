@@ -1,8 +1,11 @@
 name: Deploy to Hostinger
 
+# Publishes https://paycheck.tanmoybarua.com using the encrypted repo secret
+# HOSTINGER_API_TOKEN. The token is never written to git or workflow files.
 on:
   push:
     branches: [main, cursor/payday-calendar-b823]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -26,7 +29,11 @@ jobs:
           HOSTINGER_API_TOKEN: ${{ secrets.HOSTINGER_API_TOKEN }}
         run: |
           if [ -z "$HOSTINGER_API_TOKEN" ]; then
-            echo "Publish skipped. Add the key as a repository secret, not in the code."
-            exit 0
+            echo "::error::HOSTINGER_API_TOKEN is missing or empty."
+            echo "Set it once (never commit it):"
+            echo "  GitHub → this repo → Settings → Secrets and variables → Actions"
+            echo "  → New repository secret → name HOSTINGER_API_TOKEN → paste Hostinger token"
+            echo "Then re-run this workflow or push again. See README Deploy section."
+            exit 1
           fi
           node scripts/deploy-hostinger.mjs

@@ -13,7 +13,9 @@ const api = 'https://developers.hostinger.com'
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 
 if (!token) {
-  console.error('HOSTINGER_API_TOKEN is not set')
+  console.error('HOSTINGER_API_TOKEN is not set.')
+  console.error('Store it once as a GitHub Actions secret (or export it in this shell).')
+  console.error('See docs/deploy.md — do not commit the token.')
   process.exit(1)
 }
 
