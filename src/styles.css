@@ -50,7 +50,7 @@ button,select,input{font:inherit;color:inherit;max-width:100%}
 
 /* paycheck cards */
 .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
-.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px;display:grid;gap:10px;min-width:0}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px;display:grid;gap:10px;min-width:0;align-content:start}
 .card .top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;min-width:0}
 .jobname{display:flex;align-items:center;gap:8px;font-weight:600;min-width:0;overflow:hidden}
 .dot{width:10px;height:10px;border-radius:50%;flex:none}
@@ -65,7 +65,7 @@ button,select,input{font:inherit;color:inherit;max-width:100%}
 
 /* main grid */
 .main{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:18px;align-items:start}
-.panel{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px;display:grid;gap:14px;min-width:0}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px;display:grid;gap:14px;min-width:0;align-content:start}
 .calhead{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px}
 .calhead .nav{display:flex;align-items:center;gap:4px}
 .month{font-family:var(--display);font-weight:600;font-size:20px;min-width:9.5em;text-align:center}
@@ -215,7 +215,7 @@ select{text-overflow:ellipsis}
   .debt-top{grid-template-columns:1fr 1fr;align-items:stretch}
   .debt-top .card{height:100%}
   .checklist-hero .checklist-stats{grid-template-columns:1.1fr 1fr 1fr;align-items:end}
-  .checklist-grid{grid-template-columns:1.2fr 1fr}
+  .checklist-grid{grid-template-columns:1.2fr 1fr;align-items:start}
 }
 @media (min-width:1400px){
   .wrap{max-width:1320px}
