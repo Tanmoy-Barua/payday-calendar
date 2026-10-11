@@ -1,65 +1,130 @@
 import { useState } from 'react'
-import { fmtShort, fmtTodayLine, money } from '../dates.js'
+import { fmtShort, localToday, money } from '../dates.js'
 import {
+  ITEM_CATEGORIES,
   applyPaycheckSource,
   closePaycheckBudget,
   defaultBudgetNote,
   newItemId,
   nextPaycheckAfter,
+  normalizeBudgetItem,
   plannedRemaining,
   remainingAfterPaid,
   runningSteps,
+  syncDebtsWithChecklist,
   upcomingPaychecks,
 } from '../checklist.js'
 
 function emptyItem(separate = false) {
-  return {
+  return normalizeBudgetItem({
     id: newItemId(),
     name: '',
     amount: '',
     paid: false,
     separate,
-  }
+    category: 'other',
+    debtId: '',
+    debtPaymentId: '',
+  })
 }
 
-function ItemRow({ item, onChange, onRemove }) {
+function ItemRow({ item, debts, onChange, onRemove }) {
+  const isDebt = !item.separate && item.category === 'debt'
+  const debtOptions = debts || []
+
+  function patch(partial) {
+    onChange(normalizeBudgetItem({ ...item, ...partial }))
+  }
+
   return (
-    <label className={`check-row${item.paid ? ' is-paid' : ''}`}>
+    <div className={`check-row${item.paid ? ' is-paid' : ''}${isDebt ? ' is-debt' : ''}`}>
       <input
         type="checkbox"
         checked={!!item.paid}
-        onChange={ev => onChange({ ...item, paid: ev.target.checked })}
+        onChange={ev => patch({ paid: ev.target.checked })}
         aria-label={item.paid ? 'Mark not paid' : 'Mark paid'}
       />
-      <input
-        className="check-name"
-        type="text"
-        placeholder={item.separate ? 'Card or note' : 'What this payment is'}
-        value={item.name}
-        onChange={ev => onChange({ ...item, name: ev.target.value })}
-      />
-      <input
-        className="check-amount"
-        type="number"
-        min="0"
-        step="0.01"
-        inputMode="decimal"
-        placeholder="$"
-        value={item.amount === '' || item.amount == null ? '' : item.amount}
-        onChange={ev => {
-          const next = ev.target.value
-          if (next === '') {
-            onChange({ ...item, amount: '' })
-            return
-          }
-          if (!/^\d*\.?\d*$/.test(next)) return
-          onChange({ ...item, amount: next })
-        }}
-      />
+      <div className="check-fields">
+        {!item.separate ? (
+          <label className="field check-category">
+            <span className="label">Category</span>
+            <select
+              value={item.category === 'debt' ? 'debt' : 'other'}
+              onChange={ev => {
+                const category = ev.target.value === 'debt' ? 'debt' : 'other'
+                if (category === 'debt') {
+                  const first = debtOptions[0]
+                  patch({
+                    category,
+                    debtId: item.debtId || first?.id || '',
+                    name: item.debtId
+                      ? (debtOptions.find(d => d.id === item.debtId)?.name || item.name)
+                      : (first?.name || item.name),
+                  })
+                  return
+                }
+                patch({ category, debtId: '', debtPaymentId: item.paid ? item.debtPaymentId : '' })
+              }}
+            >
+              {ITEM_CATEGORIES.map(cat => (
+                <option key={cat.id} value={cat.id}>{cat.label}</option>
+              ))}
+            </select>
+          </label>
+        ) : null}
+        {isDebt ? (
+          <label className="field check-debt">
+            <span className="label">Debt</span>
+            <select
+              value={item.debtId || ''}
+              onChange={ev => {
+                const debtId = ev.target.value
+                const debt = debtOptions.find(row => row.id === debtId)
+                patch({ debtId, name: debt?.name || item.name })
+              }}
+              disabled={!debtOptions.length}
+            >
+              {!debtOptions.length ? <option value="">Add a debt first</option> : null}
+              {debtOptions.map(debt => (
+                <option key={debt.id} value={debt.id}>{debt.name}</option>
+              ))}
+            </select>
+          </label>
+        ) : (
+          <input
+            className="check-name"
+            type="text"
+            placeholder={item.separate ? 'Card or note' : 'What this payment is'}
+            value={item.name}
+            onChange={ev => patch({ name: ev.target.value })}
+          />
+        )}
+        <input
+          className="check-amount"
+          type="number"
+          min="0"
+          step="0.01"
+          inputMode="decimal"
+          placeholder="$"
+          value={item.amount === '' || item.amount == null ? '' : item.amount}
+          onChange={ev => {
+            const next = ev.target.value
+            if (next === '') {
+              patch({ amount: '' })
+              return
+            }
+            if (!/^\d*\.?\d*$/.test(next)) return
+            patch({ amount: next })
+          }}
+        />
+      </div>
       <button className="btn ghost check-remove" type="button" onClick={() => onRemove(item.id)} aria-label="Remove item">
         ×
       </button>
-    </label>
+      {isDebt && item.paid ? (
+        <p className="note check-debt-hint">Paid amount is deducted on the Debt page</p>
+      ) : null}
+    </div>
   )
 }
 
@@ -89,7 +154,10 @@ function HistoryCard({ entry }) {
             <ul className="history-list">
               {paid.map(row => (
                 <li key={row.id}>
-                  <span>{row.name}</span>
+                  <span>
+                    {row.name}
+                    {row.category === 'debt' ? ' · debt' : ''}
+                  </span>
                   <span className="num">{money(row.amount)}</span>
                 </li>
               ))}
@@ -116,8 +184,19 @@ function HistoryCard({ entry }) {
   )
 }
 
-export default function Checklist({ budget, onSave, jobs = [], months = {}, today }) {
-  const note = budget?.items ? budget : defaultBudgetNote()
+export default function Checklist({
+  budget,
+  onSave,
+  debts = [],
+  onSaveDebts,
+  jobs = [],
+  months = {},
+  today = localToday(),
+}) {
+  const note = budget?.items ? {
+    ...budget,
+    items: budget.items.map(normalizeBudgetItem),
+  } : defaultBudgetNote()
   const paychecks = upcomingPaychecks(jobs, months, today)
   const selected = paychecks.find(row => row.jobId === note.jobId && row.payday === note.paycheckDate)
     || paychecks.find(row => row.jobId === note.jobId)
@@ -131,6 +210,12 @@ export default function Checklist({ budget, onSave, jobs = [], months = {}, toda
   const paidCount = mainItems.filter(item => item.paid).length
   const history = note.history || []
 
+  function commitItems(nextItems) {
+    const synced = syncDebtsWithChecklist(debts, note.items, nextItems, { today })
+    onSave({ ...note, items: synced.items })
+    if (onSaveDebts) onSaveDebts(synced.debts)
+  }
+
   function update(next) {
     onSave(next)
   }
@@ -140,18 +225,15 @@ export default function Checklist({ budget, onSave, jobs = [], months = {}, toda
   }
 
   function setItem(nextItem) {
-    update({
-      ...note,
-      items: note.items.map(item => (item.id === nextItem.id ? nextItem : item)),
-    })
+    commitItems(note.items.map(item => (item.id === nextItem.id ? nextItem : item)))
   }
 
   function removeItem(id) {
-    update({ ...note, items: note.items.filter(item => item.id !== id) })
+    commitItems(note.items.filter(item => item.id !== id))
   }
 
   function addItem(separate) {
-    update({ ...note, items: note.items.concat(emptyItem(separate)) })
+    commitItems(note.items.concat(emptyItem(separate)))
   }
 
   function choosePaycheck(jobId) {
@@ -166,7 +248,7 @@ export default function Checklist({ budget, onSave, jobs = [], months = {}, toda
   }
 
   function closeCurrent() {
-    if (!window.confirm('Close this paycheck budget and save it to history? Paid marks will reset for the next check.')) return
+    if (!window.confirm('Close this paycheck budget and save it to history? Paid marks will reset for the next check. Debt payments already logged stay on the Debt page.')) return
     const nextPay = nextPaycheckAfter(jobs, months, note.paycheckDate || selected?.payday, note.jobId || selected?.jobId)
     const { budget: closed } = closePaycheckBudget(note, { nextPaycheck: nextPay })
     update(closed)
@@ -178,7 +260,7 @@ export default function Checklist({ budget, onSave, jobs = [], months = {}, toda
         <div className="label">Notepad</div>
         <h2>{note.title || 'Budget Note'}</h2>
         <p className="note">
-          Starting amount follows your next paycheck. Check payments as you pay them, then close the paycheck to keep a history of where that money went.
+          Starting amount follows your next paycheck. Set a payment category to Debt to pick a debt name — when you mark it paid, that amount is deducted on the Debt page.
         </p>
 
         <div className="paycheck-source">
@@ -192,7 +274,7 @@ export default function Checklist({ budget, onSave, jobs = [], months = {}, toda
               {!paychecks.length ? <option value="">Add a pay schedule first</option> : null}
               {paychecks.map(row => (
                 <option key={row.jobId} value={row.jobId}>
-                  {row.jobName} · {fmtTodayLine(row.payday)} · {money(row.amount)}
+                  {row.jobName} · {fmtShort(row.payday)} · {money(row.amount)}
                 </option>
               ))}
             </select>
@@ -249,9 +331,16 @@ export default function Checklist({ budget, onSave, jobs = [], months = {}, toda
         <section className="card">
           <div className="label">Pay checklist</div>
           <h3>Mark paid or not paid</h3>
+          <p className="note">Choose category Debt to link a row to a debt. Checking paid logs that amount against it.</p>
           <div className="check-list">
             {mainItems.map(item => (
-              <ItemRow key={item.id} item={item} onChange={setItem} onRemove={removeItem} />
+              <ItemRow
+                key={item.id}
+                item={item}
+                debts={debts}
+                onChange={setItem}
+                onRemove={removeItem}
+              />
             ))}
           </div>
           <button className="btn" type="button" onClick={() => addItem(false)}>+ Add payment</button>
@@ -288,7 +377,13 @@ export default function Checklist({ budget, onSave, jobs = [], months = {}, toda
         </p>
         <div className="check-list">
           {otherItems.map(item => (
-            <ItemRow key={item.id} item={item} onChange={setItem} onRemove={removeItem} />
+            <ItemRow
+              key={item.id}
+              item={item}
+              debts={debts}
+              onChange={setItem}
+              onRemove={removeItem}
+            />
           ))}
         </div>
         <button className="btn" type="button" onClick={() => addItem(true)}>+ Add side item</button>

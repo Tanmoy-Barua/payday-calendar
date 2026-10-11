@@ -140,7 +140,10 @@ function ensureBudgetTables(db) {
       amount REAL,
       paid INTEGER NOT NULL DEFAULT 0,
       separate INTEGER NOT NULL DEFAULT 0,
-      position INTEGER NOT NULL DEFAULT 0
+      position INTEGER NOT NULL DEFAULT 0,
+      category TEXT NOT NULL DEFAULT 'other',
+      debt_id TEXT NOT NULL DEFAULT '',
+      debt_payment_id TEXT NOT NULL DEFAULT ''
     );
     CREATE TABLE IF NOT EXISTS budget_history (
       id TEXT PRIMARY KEY,
@@ -158,6 +161,10 @@ function ensureBudgetTables(db) {
   if (!cols.includes('paycheck_date')) db.exec(`ALTER TABLE budget_notes ADD COLUMN paycheck_date TEXT NOT NULL DEFAULT ''`)
   if (!cols.includes('paycheck_label')) db.exec(`ALTER TABLE budget_notes ADD COLUMN paycheck_label TEXT NOT NULL DEFAULT ''`)
   if (!cols.includes('job_id')) db.exec(`ALTER TABLE budget_notes ADD COLUMN job_id TEXT NOT NULL DEFAULT ''`)
+  const itemCols = db.prepare('PRAGMA table_info(budget_items)').all().map(row => row.name)
+  if (!itemCols.includes('category')) db.exec(`ALTER TABLE budget_items ADD COLUMN category TEXT NOT NULL DEFAULT 'other'`)
+  if (!itemCols.includes('debt_id')) db.exec(`ALTER TABLE budget_items ADD COLUMN debt_id TEXT NOT NULL DEFAULT ''`)
+  if (!itemCols.includes('debt_payment_id')) db.exec(`ALTER TABLE budget_items ADD COLUMN debt_payment_id TEXT NOT NULL DEFAULT ''`)
 }
 
 function ensureDebtColumns(db) {
@@ -248,12 +255,16 @@ export function getState(db) {
 }
 
 function budgetItemFromRow(row) {
+  const category = row.category === 'debt' && !row.separate ? 'debt' : 'other'
   return {
     id: row.id,
     name: row.name || '',
     amount: row.amount == null ? '' : money2(row.amount),
     paid: !!row.paid,
     separate: !!row.separate,
+    category,
+    debtId: category === 'debt' ? (row.debt_id || '') : '',
+    debtPaymentId: row.debt_payment_id || '',
   }
 }
 
@@ -304,13 +315,18 @@ function cleanBudgetItem(item, position) {
   const amount = raw === '' || raw == null || Number.isNaN(Number(raw))
     ? null
     : money2(Math.max(0, Number(raw)))
+  const separate = item?.separate ? 1 : 0
+  const category = !separate && item?.category === 'debt' ? 'debt' : 'other'
   return {
     id: String(item?.id || '').slice(0, 40) || `item-${position}`,
     name: String(item?.name || '').trim().slice(0, 60),
     amount,
     paid: item?.paid ? 1 : 0,
-    separate: item?.separate ? 1 : 0,
+    separate,
     position,
+    category,
+    debtId: category === 'debt' ? String(item?.debtId || '').slice(0, 40) : '',
+    debtPaymentId: String(item?.debtPaymentId || '').slice(0, 40),
   }
 }
 
@@ -348,8 +364,8 @@ export function saveBudget(db, budget) {
   const list = Array.isArray(budget?.items) ? budget.items : []
   const history = Array.isArray(budget?.history) ? budget.history : []
   const insert = db.prepare(`
-    INSERT INTO budget_items (id, name, amount, paid, separate, position)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO budget_items (id, name, amount, paid, separate, position, category, debt_id, debt_payment_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `)
   const insertHistory = db.prepare(`
     INSERT INTO budget_history
@@ -369,7 +385,17 @@ export function saveBudget(db, budget) {
       const row = cleanBudgetItem(item, i)
       if (seen.has(row.id)) return
       seen.add(row.id)
-      insert.run(row.id, row.name, row.amount, row.paid, row.separate, row.position)
+      insert.run(
+        row.id,
+        row.name,
+        row.amount,
+        row.paid,
+        row.separate,
+        row.position,
+        row.category,
+        row.debtId,
+        row.debtPaymentId,
+      )
     })
     db.exec('DELETE FROM budget_history')
     const seenHist = new Set()

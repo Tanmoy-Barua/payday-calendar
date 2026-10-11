@@ -1,30 +1,59 @@
-import { add, fmtTodayLine, localToday } from './dates.js'
+import { add, fmtTodayLine, localToday, uid } from './dates.js'
 import { payOnOrAfter, periodFor } from './pay.js'
 import { totals } from './calc.js'
 
 export const DEFAULT_STARTING = 2200
 
+export const ITEM_CATEGORIES = [
+  { id: 'other', label: 'Other' },
+  { id: 'debt', label: 'Debt' },
+]
+
 export function money2(n) {
   return Math.round((Number(n) || 0) * 100) / 100
 }
 
-export function defaultBudgetNote() {
-  const main = [600, 360, 100, 250, 500, 167, 60, 89].map((amount, i) => ({
-    id: `pay-${i + 1}`,
+export function normalizeBudgetItem(item = {}) {
+  const category = item.category === 'debt' ? 'debt' : 'other'
+  return {
+    id: item.id,
+    name: item.name || '',
+    amount: item.amount === '' || item.amount == null ? '' : item.amount,
+    paid: !!item.paid,
+    separate: !!item.separate,
+    category: item.separate ? 'other' : category,
+    debtId: category === 'debt' && !item.separate ? String(item.debtId || '') : '',
+    debtPaymentId: String(item.debtPaymentId || ''),
+  }
+}
+
+function blankItemFields(amount = '', separate = false) {
+  return normalizeBudgetItem({
+    id: '',
     name: '',
     amount,
     paid: false,
-    separate: false,
+    separate,
+    category: 'other',
+    debtId: '',
+    debtPaymentId: '',
+  })
+}
+
+export function defaultBudgetNote() {
+  const main = [600, 360, 100, 250, 500, 167, 60, 89].map((amount, i) => ({
+    ...blankItemFields(amount, false),
+    id: `pay-${i + 1}`,
   }))
   const separate = [
-    { id: 'sep-prime', name: 'Prime', amount: 50, paid: false, separate: true },
-    { id: 'sep-credit-one', name: 'Credit One', amount: '', paid: false, separate: true },
-    { id: 'sep-capital-one', name: 'Capital One', amount: '', paid: false, separate: true },
-    { id: 'sep-apple', name: 'Apple Card', amount: '', paid: false, separate: true },
-    { id: 'sep-chevron', name: 'Chevron Card', amount: '', paid: false, separate: true },
-    { id: 'sep-45', name: '', amount: 45, paid: false, separate: true },
-    { id: 'sep-40', name: '', amount: 40, paid: false, separate: true },
-  ]
+    { id: 'sep-prime', name: 'Prime', amount: 50 },
+    { id: 'sep-credit-one', name: 'Credit One', amount: '' },
+    { id: 'sep-capital-one', name: 'Capital One', amount: '' },
+    { id: 'sep-apple', name: 'Apple Card', amount: '' },
+    { id: 'sep-chevron', name: 'Chevron Card', amount: '' },
+    { id: 'sep-45', name: '', amount: 45 },
+    { id: 'sep-40', name: '', amount: 40 },
+  ].map(row => ({ ...blankItemFields(row.amount, true), id: row.id, name: row.name }))
   return {
     title: 'Budget Note',
     starting: DEFAULT_STARTING,
@@ -96,8 +125,86 @@ export function paidBreakdown(items) {
       name: item.name || (item.separate ? 'Side note' : 'Payment'),
       amount: itemAmount(item),
       separate: !!item.separate,
+      category: item.category === 'debt' ? 'debt' : 'other',
+      debtId: item.debtId || '',
     }))
     .filter(row => row.amount != null)
+}
+
+function cloneDebts(debts) {
+  return (debts || []).map(debt => ({
+    ...debt,
+    payments: [...(debt.payments || [])],
+  }))
+}
+
+function removeLinkedPayment(debts, paymentId) {
+  if (!paymentId) return debts
+  return debts.map(debt => ({
+    ...debt,
+    payments: (debt.payments || []).filter(pay => pay.id !== paymentId),
+  }))
+}
+
+function upsertLinkedPayment(debts, item, { today, paymentId }) {
+  const amount = itemAmount(item)
+  const id = paymentId || uid()
+  if (!item.debtId || amount == null || !(amount > 0)) {
+    return { debts: removeLinkedPayment(debts, id), paymentId: '' }
+  }
+  if (!debts.some(debt => debt.id === item.debtId)) {
+    return { debts: removeLinkedPayment(debts, id), paymentId: '' }
+  }
+  const note = item.name?.trim() ? `Checklist · ${item.name.trim()}` : 'Checklist payment'
+  let keptDay = today
+  for (const debt of debts) {
+    const existing = (debt.payments || []).find(pay => pay.id === id)
+    if (existing?.day) {
+      keptDay = existing.day
+      break
+    }
+  }
+  const cleared = removeLinkedPayment(debts, id)
+  const next = cleared.map(debt => (
+    debt.id === item.debtId
+      ? {
+          ...debt,
+          payments: [...(debt.payments || []), { id, day: keptDay, amount, note }],
+        }
+      : debt
+  ))
+  return { debts: next, paymentId: id }
+}
+
+/** Keep Debt page payments in sync when checklist debt rows are paid / unpaid / changed. */
+export function syncDebtsWithChecklist(debts, prevItems, nextItems, { today = localToday() } = {}) {
+  let nextDebts = cloneDebts(debts)
+  const prevMap = new Map((prevItems || []).map(item => [item.id, normalizeBudgetItem(item)]))
+  const nextNormalized = (nextItems || []).map(item => normalizeBudgetItem(item))
+  const nextIds = new Set(nextNormalized.map(item => item.id))
+
+  for (const prev of prevMap.values()) {
+    if (nextIds.has(prev.id)) continue
+    if (prev.debtPaymentId) nextDebts = removeLinkedPayment(nextDebts, prev.debtPaymentId)
+  }
+
+  const syncedItems = nextNormalized.map(item => {
+    const prev = prevMap.get(item.id) || normalizeBudgetItem({ id: item.id })
+    const wasLinked = prev.category === 'debt' && prev.paid && prev.debtPaymentId
+    const shouldLink = item.category === 'debt' && item.paid && !item.separate
+
+    if (!shouldLink) {
+      if (wasLinked) nextDebts = removeLinkedPayment(nextDebts, prev.debtPaymentId)
+      return { ...item, debtPaymentId: '' }
+    }
+
+    const paymentId = prev.debtPaymentId || item.debtPaymentId || uid()
+    const result = upsertLinkedPayment(nextDebts, item, { today, paymentId })
+    nextDebts = result.debts
+    return { ...item, debtPaymentId: result.paymentId }
+  })
+
+  return { debts: nextDebts, items: syncedItems }
 }
 
 export function newItemId(prefix = 'item') {
@@ -143,16 +250,20 @@ export function closePaycheckBudget(budget, { closedAt = localToday(), nextPaych
     starting,
     remaining,
     closedAt,
-    items: items.map(item => ({
-      id: item.id,
-      name: item.name || '',
-      amount: item.amount === '' || item.amount == null ? '' : money2(item.amount),
-      paid: !!item.paid,
-      separate: !!item.separate,
-    })),
+    items: items.map(item => {
+      const row = normalizeBudgetItem(item)
+      return {
+        ...row,
+        amount: row.amount === '' || row.amount == null ? '' : money2(row.amount),
+      }
+    }),
     paid: paidBreakdown(items),
   }
-  const resetItems = items.map(item => ({ ...item, paid: false }))
+  const resetItems = items.map(item => ({
+    ...normalizeBudgetItem(item),
+    paid: false,
+    debtPaymentId: '',
+  }))
   let next = {
     ...budget,
     items: resetItems,

@@ -230,12 +230,17 @@ header .status{grid-column:1/-1;order:3}
 .checklist-grid{display:grid;gap:12px}
 .checklist-remain{font-family:var(--display);font-size:clamp(28px,5vw,40px);font-weight:700}
 .check-list{display:grid;gap:8px;margin:12px 0}
-.check-row{display:grid;grid-template-columns:auto 1fr 96px auto;gap:8px;align-items:center;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--bg)}
+.check-row{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:8px;align-items:start;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--bg);min-width:0}
 .check-row.is-paid{opacity:0.72;background:color-mix(in srgb, var(--accent) 8%, var(--bg))}
-.check-row input[type="checkbox"]{width:20px;height:20px;accent-color:var(--accent)}
-.check-name,.check-amount{width:100%;min-height:40px;border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--surface)}
+.check-row input[type="checkbox"]{width:20px;height:20px;accent-color:var(--accent);margin-top:12px}
+.check-fields{display:grid;grid-template-columns:minmax(0,1fr) minmax(72px,96px);gap:8px;min-width:0;align-items:end}
+.check-row.is-debt .check-fields{grid-template-columns:minmax(0,.9fr) minmax(0,1.2fr) minmax(72px,96px)}
+.check-category,.check-debt{min-width:0}
+.check-category select,.check-debt select{width:100%;min-height:40px;border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--surface)}
+.check-name,.check-amount{width:100%;min-height:40px;border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--surface);min-width:0}
 .check-amount{font-variant-numeric:tabular-nums}
-.check-remove{min-width:36px;padding-inline:8px}
+.check-remove{min-width:36px;padding-inline:8px;margin-top:4px}
+.check-debt-hint{grid-column:2 / -1;margin:0}
 .check-math{list-style:none;margin:0;padding:0;display:grid;gap:8px}
 .check-math li{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid var(--line)}
 .check-math li.is-paid{color:var(--accent)}

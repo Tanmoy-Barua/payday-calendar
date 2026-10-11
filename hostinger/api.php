@@ -84,7 +84,10 @@ function ensureBudgetTables(PDO $db): void {
           amount REAL,
           paid INTEGER NOT NULL DEFAULT 0,
           separate INTEGER NOT NULL DEFAULT 0,
-          position INTEGER NOT NULL DEFAULT 0
+          position INTEGER NOT NULL DEFAULT 0,
+          category TEXT NOT NULL DEFAULT \'other\',
+          debt_id TEXT NOT NULL DEFAULT \'\',
+          debt_payment_id TEXT NOT NULL DEFAULT \'\'
         );
         CREATE TABLE IF NOT EXISTS budget_history (
           id TEXT PRIMARY KEY,
@@ -103,6 +106,11 @@ function ensureBudgetTables(PDO $db): void {
     if (!isset($cols['paycheck_date'])) $db->exec("ALTER TABLE budget_notes ADD COLUMN paycheck_date TEXT NOT NULL DEFAULT ''");
     if (!isset($cols['paycheck_label'])) $db->exec("ALTER TABLE budget_notes ADD COLUMN paycheck_label TEXT NOT NULL DEFAULT ''");
     if (!isset($cols['job_id'])) $db->exec("ALTER TABLE budget_notes ADD COLUMN job_id TEXT NOT NULL DEFAULT ''");
+    $itemCols = [];
+    foreach ($db->query('PRAGMA table_info(budget_items)') as $row) $itemCols[$row['name']] = true;
+    if (!isset($itemCols['category'])) $db->exec("ALTER TABLE budget_items ADD COLUMN category TEXT NOT NULL DEFAULT 'other'");
+    if (!isset($itemCols['debt_id'])) $db->exec("ALTER TABLE budget_items ADD COLUMN debt_id TEXT NOT NULL DEFAULT ''");
+    if (!isset($itemCols['debt_payment_id'])) $db->exec("ALTER TABLE budget_items ADD COLUMN debt_payment_id TEXT NOT NULL DEFAULT ''");
 }
 
 function defaultBudgetNote(): array {
@@ -114,16 +122,19 @@ function defaultBudgetNote(): array {
             'amount' => $amount,
             'paid' => false,
             'separate' => false,
+            'category' => 'other',
+            'debtId' => '',
+            'debtPaymentId' => '',
         ];
     }
     $separate = [
-        ['id' => 'sep-prime', 'name' => 'Prime', 'amount' => 50, 'paid' => false, 'separate' => true],
-        ['id' => 'sep-credit-one', 'name' => 'Credit One', 'amount' => '', 'paid' => false, 'separate' => true],
-        ['id' => 'sep-capital-one', 'name' => 'Capital One', 'amount' => '', 'paid' => false, 'separate' => true],
-        ['id' => 'sep-apple', 'name' => 'Apple Card', 'amount' => '', 'paid' => false, 'separate' => true],
-        ['id' => 'sep-chevron', 'name' => 'Chevron Card', 'amount' => '', 'paid' => false, 'separate' => true],
-        ['id' => 'sep-45', 'name' => '', 'amount' => 45, 'paid' => false, 'separate' => true],
-        ['id' => 'sep-40', 'name' => '', 'amount' => 40, 'paid' => false, 'separate' => true],
+        ['id' => 'sep-prime', 'name' => 'Prime', 'amount' => 50, 'paid' => false, 'separate' => true, 'category' => 'other', 'debtId' => '', 'debtPaymentId' => ''],
+        ['id' => 'sep-credit-one', 'name' => 'Credit One', 'amount' => '', 'paid' => false, 'separate' => true, 'category' => 'other', 'debtId' => '', 'debtPaymentId' => ''],
+        ['id' => 'sep-capital-one', 'name' => 'Capital One', 'amount' => '', 'paid' => false, 'separate' => true, 'category' => 'other', 'debtId' => '', 'debtPaymentId' => ''],
+        ['id' => 'sep-apple', 'name' => 'Apple Card', 'amount' => '', 'paid' => false, 'separate' => true, 'category' => 'other', 'debtId' => '', 'debtPaymentId' => ''],
+        ['id' => 'sep-chevron', 'name' => 'Chevron Card', 'amount' => '', 'paid' => false, 'separate' => true, 'category' => 'other', 'debtId' => '', 'debtPaymentId' => ''],
+        ['id' => 'sep-45', 'name' => '', 'amount' => 45, 'paid' => false, 'separate' => true, 'category' => 'other', 'debtId' => '', 'debtPaymentId' => ''],
+        ['id' => 'sep-40', 'name' => '', 'amount' => 40, 'paid' => false, 'separate' => true, 'category' => 'other', 'debtId' => '', 'debtPaymentId' => ''],
     ];
     return [
         'title' => 'Budget Note',
@@ -142,13 +153,18 @@ function cleanBudgetItem(array $item, int $position): array {
         ? null
         : money2(max(0, (float)$raw));
     $id = substr((string)($item['id'] ?? ''), 0, 40);
+    $separate = !empty($item['separate']) ? 1 : 0;
+    $category = (!$separate && (($item['category'] ?? '') === 'debt')) ? 'debt' : 'other';
     return [
         'id' => $id !== '' ? $id : ('item-' . $position),
         'name' => trim(substr((string)($item['name'] ?? ''), 0, 60)),
         'amount' => $amount,
         'paid' => !empty($item['paid']) ? 1 : 0,
-        'separate' => !empty($item['separate']) ? 1 : 0,
+        'separate' => $separate,
         'position' => $position,
+        'category' => $category,
+        'debtId' => $category === 'debt' ? substr((string)($item['debtId'] ?? ''), 0, 40) : '',
+        'debtPaymentId' => substr((string)($item['debtPaymentId'] ?? ''), 0, 40),
     ];
 }
 
@@ -187,7 +203,7 @@ function saveBudget(PDO $db, $budget): void {
     $jobId = substr((string)(is_array($budget) ? ($budget['jobId'] ?? '') : ''), 0, 40);
     $list = is_array($budget) && is_array($budget['items'] ?? null) ? $budget['items'] : [];
     $history = is_array($budget) && is_array($budget['history'] ?? null) ? $budget['history'] : [];
-    $insert = $db->prepare('INSERT INTO budget_items (id, name, amount, paid, separate, position) VALUES (?, ?, ?, ?, ?, ?)');
+    $insert = $db->prepare('INSERT INTO budget_items (id, name, amount, paid, separate, position, category, debt_id, debt_payment_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
     $insertHistory = $db->prepare('INSERT INTO budget_history (id, paycheck_date, paycheck_label, job_id, starting, remaining, closed_at, items_json, paid_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
     $db->beginTransaction();
     try {
@@ -201,7 +217,17 @@ function saveBudget(PDO $db, $budget): void {
             $row = cleanBudgetItem($item, $i);
             if (isset($seen[$row['id']])) continue;
             $seen[$row['id']] = true;
-            $insert->execute([$row['id'], $row['name'], $row['amount'], $row['paid'], $row['separate'], $row['position']]);
+            $insert->execute([
+                $row['id'],
+                $row['name'],
+                $row['amount'],
+                $row['paid'],
+                $row['separate'],
+                $row['position'],
+                $row['category'],
+                $row['debtId'],
+                $row['debtPaymentId'],
+            ]);
         }
         $db->exec('DELETE FROM budget_history');
         $seenHist = [];
@@ -240,12 +266,17 @@ function getBudget(PDO $db): array {
     }
     $items = [];
     foreach ($db->query('SELECT * FROM budget_items ORDER BY separate ASC, position ASC, id ASC') as $row) {
+        $separate = !empty($row['separate']);
+        $category = (!$separate && (($row['category'] ?? '') === 'debt')) ? 'debt' : 'other';
         $items[] = [
             'id' => $row['id'],
             'name' => (string)($row['name'] ?? ''),
             'amount' => $row['amount'] === null ? '' : money2((float)$row['amount']),
             'paid' => !empty($row['paid']),
-            'separate' => !empty($row['separate']),
+            'separate' => $separate,
+            'category' => $category,
+            'debtId' => $category === 'debt' ? (string)($row['debt_id'] ?? '') : '',
+            'debtPaymentId' => (string)($row['debt_payment_id'] ?? ''),
         ];
     }
     $history = [];

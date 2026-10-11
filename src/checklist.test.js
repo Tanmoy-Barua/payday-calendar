@@ -7,6 +7,7 @@ import {
   plannedRemaining,
   remainingAfterPaid,
   runningSteps,
+  syncDebtsWithChecklist,
   upcomingPaychecks,
 } from './checklist.js'
 
@@ -91,6 +92,78 @@ test('closing a paycheck keeps history and resets paid marks', () => {
   assert.equal(entry.paid[0].amount, 600)
   assert.equal(budget.history.length, 1)
   assert.equal(budget.items[0].paid, false)
+  assert.equal(budget.items[0].debtPaymentId, '')
   assert.equal(budget.starting, 400)
   assert.equal(budget.paycheckDate, '2026-10-29')
+})
+
+test('marking a debt checklist item paid adds that amount to the debt', () => {
+  const debts = [{ id: 'car', name: 'Car loan', total: 4200, opened: '2026-01-01', payments: [] }]
+  const prev = [{
+    id: 'pay-1',
+    name: 'Car loan',
+    amount: 200,
+    paid: false,
+    separate: false,
+    category: 'debt',
+    debtId: 'car',
+    debtPaymentId: '',
+  }]
+  const next = [{ ...prev[0], paid: true }]
+  const synced = syncDebtsWithChecklist(debts, prev, next, { today: '2026-10-10' })
+  assert.equal(synced.debts[0].payments.length, 1)
+  assert.equal(synced.debts[0].payments[0].amount, 200)
+  assert.equal(synced.debts[0].payments[0].day, '2026-10-10')
+  assert.match(synced.debts[0].payments[0].note, /Checklist/)
+  assert.equal(synced.items[0].debtPaymentId, synced.debts[0].payments[0].id)
+})
+
+test('unchecking a debt checklist item removes the linked debt payment', () => {
+  const debts = [{
+    id: 'car',
+    name: 'Car loan',
+    total: 4200,
+    opened: '2026-01-01',
+    payments: [{ id: 'link-1', day: '2026-10-10', amount: 200, note: 'Checklist · Car loan' }],
+  }]
+  const prev = [{
+    id: 'pay-1',
+    name: 'Car loan',
+    amount: 200,
+    paid: true,
+    separate: false,
+    category: 'debt',
+    debtId: 'car',
+    debtPaymentId: 'link-1',
+  }]
+  const next = [{ ...prev[0], paid: false }]
+  const synced = syncDebtsWithChecklist(debts, prev, next, { today: '2026-10-10' })
+  assert.equal(synced.debts[0].payments.length, 0)
+  assert.equal(synced.items[0].debtPaymentId, '')
+})
+
+test('changing the paid debt amount updates the linked payment', () => {
+  const debts = [{
+    id: 'car',
+    name: 'Car loan',
+    total: 4200,
+    opened: '2026-01-01',
+    payments: [{ id: 'link-1', day: '2026-10-09', amount: 200, note: 'Checklist · Car loan' }],
+  }]
+  const prev = [{
+    id: 'pay-1',
+    name: 'Car loan',
+    amount: 200,
+    paid: true,
+    separate: false,
+    category: 'debt',
+    debtId: 'car',
+    debtPaymentId: 'link-1',
+  }]
+  const next = [{ ...prev[0], amount: 250 }]
+  const synced = syncDebtsWithChecklist(debts, prev, next, { today: '2026-10-10' })
+  assert.equal(synced.debts[0].payments.length, 1)
+  assert.equal(synced.debts[0].payments[0].id, 'link-1')
+  assert.equal(synced.debts[0].payments[0].amount, 250)
+  assert.equal(synced.debts[0].payments[0].day, '2026-10-09')
 })
