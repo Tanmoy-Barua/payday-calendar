@@ -222,13 +222,16 @@ form{display:grid;gap:10px}
 .past-paychecks{margin-top:0}
 .past-list{display:grid;gap:10px;margin-top:4px}
 .past-row{
-  display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:12px 16px;align-items:center;
-  padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--bg);min-width:0;
+  display:grid;grid-template-columns:minmax(0,1fr) auto;gap:14px 24px;align-items:center;
+  padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--bg);min-width:0;
 }
 .past-main{display:grid;gap:4px;min-width:0}
-.past-payday{font-family:var(--display);font-weight:700;font-size:clamp(16px,3.5vw,18px);letter-spacing:-.01em}
-.past-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
-.past-stats .v{font-family:var(--mono);font-weight:600;font-size:15px}
+.past-payday{font-family:var(--display);font-weight:700;font-size:clamp(16px,3.5vw,18px);letter-spacing:-.01em;overflow-wrap:anywhere}
+.past-side{display:grid;gap:8px;justify-items:end;text-align:right;min-width:0}
+.past-amount{font-family:var(--display);font-weight:800;font-size:clamp(22px,4vw,28px);letter-spacing:-.02em;line-height:1.05;white-space:nowrap}
+.past-meta{display:grid;grid-template-columns:repeat(3,auto);gap:8px 18px}
+.past-meta > div{display:grid;gap:2px;justify-items:end}
+.past-meta .v{font-family:var(--mono);font-weight:600;font-size:14px;white-space:nowrap;line-height:1.2}
 
 [hidden]{display:none !important}
 
