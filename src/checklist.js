@@ -1,5 +1,5 @@
-import { add, fmtTodayLine, localToday, uid } from './dates.js'
-import { payOnOrAfter, periodFor } from './pay.js'
+import { add, diff, fmtShort, fmtTodayLine, localToday, uid } from './dates.js'
+import { cardTotalRange, payOnOrAfter, periodFor } from './pay.js'
 import { totals } from './calc.js'
 
 export const DEFAULT_STARTING = 2200
@@ -215,14 +215,24 @@ export function upcomingPaychecks(jobs, months, today) {
   return (jobs || []).map(job => {
     const payday = payOnOrAfter(job, today)
     const period = periodFor(job, payday)
-    const sum = totals(months, period.start, period.end, job.id)
+    const window = cardTotalRange(job, today)
+    const start = window.start
+    const end = window.end
+    const sum = totals(months, start, end, job.id)
+    const span = Math.max(1, diff(start, end) + 1)
+    const spanLabel = span === 14 ? '2 weeks' : `${span} days`
+    const rangeText = `${fmtShort(start)}–${fmtShort(end)}`
     return {
       jobId: job.id,
       jobName: job.name,
       payday,
       amount: money2(sum.a),
       period,
-      label: `${job.name} · ${fmtTodayLine(payday)}`,
+      range: { start, end, span },
+      cardMode: window.mode,
+      label: window.mode === 'paycheck'
+        ? `${job.name} · ${spanLabel} ${rangeText} · payday ${fmtTodayLine(payday)}`
+        : `${job.name} · ${window.title} ${rangeText}`,
     }
   }).sort((a, b) => a.payday.localeCompare(b.payday) || a.jobName.localeCompare(b.jobName))
 }

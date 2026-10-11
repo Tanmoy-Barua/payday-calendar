@@ -14,6 +14,7 @@ export const FREQ = {
 export const CARD_TOTALS = {
   paycheck: 'Next paycheck period',
   month: 'This calendar month',
+  '14': 'Last 14 days (2 weeks)',
   '15': 'Last 15 days',
   '30': 'Last 30 days',
   '7': 'Last 7 days',
@@ -39,14 +40,14 @@ export function cardTotalRange(job, today) {
       subtitle: fmtMonth(y, m),
     }
   }
-  if (mode === '7' || mode === '15' || mode === '30') {
+  if (mode === '7' || mode === '14' || mode === '15' || mode === '30') {
     const n = Number(mode)
     return {
       mode,
       start: add(today, -(n - 1)),
       end: today,
-      title: `Last ${n} days`,
-      subtitle: `${n}-day total`,
+      title: n === 14 ? 'Last 2 weeks' : `Last ${n} days`,
+      subtitle: n === 14 ? '14-day total' : `${n}-day total`,
     }
   }
   const next = payOnOrAfter(job, today)

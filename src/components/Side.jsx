@@ -310,7 +310,7 @@ function JobForm({ jobs, editingJob, onCancel, onSave }) {
             ))}
           </select>
           <div className="hint">
-            For Amazon Flex or Uber, pick This calendar month to show how much you earned this month on the top card.
+            Controls the big number on the Calendar card and the Checklist starting total. Use This calendar month for Amazon/Uber, or Last 14 days (2 weeks) / Next paycheck period for biweekly jobs.
           </div>
         </div>
         <div className="field">

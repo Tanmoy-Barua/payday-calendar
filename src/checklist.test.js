@@ -65,6 +65,10 @@ test('starting amount is taken from the next paycheck source', () => {
   const checks = upcomingPaychecks(jobs, months, '2026-10-09')
   assert.equal(checks[0].payday, '2026-10-15')
   assert.equal(checks[0].amount, 295.04)
+  assert.equal(checks[0].range.start, '2026-09-28')
+  assert.equal(checks[0].range.end, '2026-10-11')
+  assert.equal(checks[0].range.span, 14)
+  assert.match(checks[0].label, /2 weeks/)
   const note = applyPaycheckSource(defaultBudgetNote(), checks[0])
   assert.equal(note.starting, 295.04)
   assert.equal(note.paycheckDate, '2026-10-15')
@@ -72,6 +76,28 @@ test('starting amount is taken from the next paycheck source', () => {
   // Locked starting always mirrors paycheck amount when re-applied
   const again = applyPaycheckSource({ ...note, starting: 2200 }, checks[0])
   assert.equal(again.starting, 295.04)
+})
+
+test('checklist earnings follow Last 14 days when the schedule asks for it', () => {
+  const jobs = [{
+    id: 'flex',
+    name: 'Amazon Flex',
+    freq: 'weekly',
+    anchor: '2026-10-08',
+    cardTotal: '14',
+  }]
+  const months = {
+    '2026-10': {
+      days: {
+        '2026-10-01': [{ id: 'a', job: 'flex', hours: 0, amount: 50 }],
+        '2026-10-10': [{ id: 'b', job: 'flex', hours: 0, amount: 80 }],
+      },
+    },
+  }
+  const checks = upcomingPaychecks(jobs, months, '2026-10-11')
+  assert.equal(checks[0].range.span, 14)
+  assert.equal(checks[0].range.start, '2026-09-28')
+  assert.equal(checks[0].amount, 130)
 })
 
 test('closing a paycheck keeps history and resets paid marks', () => {

@@ -269,12 +269,12 @@ export default function Checklist({
         <div className="label">Notepad</div>
         <h2>{note.title || 'Budget Note'}</h2>
         <p className="note">
-          Starting amount is locked to your next paycheck. Set a payment category to Debt to pick a debt name — when you mark it paid, that amount is deducted on the Debt page.
+          Starting amount is locked to what you earned in that schedule’s work window (about 2 weeks for biweekly pay). Set a payment category to Debt to pick a debt name — when you mark it paid, that amount is deducted on the Debt page.
         </p>
 
         <div className="paycheck-source">
           <label className="field">
-            <span className="label">Next paycheck</span>
+            <span className="label">Earnings for this notepad</span>
             <select
               value={selected?.jobId || ''}
               onChange={ev => choosePaycheck(ev.target.value)}
@@ -283,7 +283,7 @@ export default function Checklist({
               {!paychecks.length ? <option value="">Add a pay schedule first</option> : null}
               {paychecks.map(row => (
                 <option key={row.jobId} value={row.jobId}>
-                  {row.jobName} · {fmtShort(row.payday)} · {money(row.amount)}
+                  {row.jobName} · {row.range?.span === 14 ? '2 weeks' : `${row.range?.span || '?'} days`} {fmtShort(row.range?.start)}–{fmtShort(row.range?.end)} · {money(row.amount)}
                 </option>
               ))}
             </select>
@@ -294,9 +294,13 @@ export default function Checklist({
             </button>
           </div>
           {selected ? (
-            <p className="note">Starting amount updates automatically from this paycheck.</p>
+            <p className="note">
+              Starting amount is your total earned {selected.range?.span === 14 ? 'in those 2 weeks' : 'in this window'}
+              {selected.payday ? ` · payday ${fmtShort(selected.payday)}` : ''}.
+              Change “Top card total shows” on the pay schedule to use month or last 14 days instead.
+            </p>
           ) : (
-            <p className="note">Add a pay schedule so the starting amount can follow your next paycheck.</p>
+            <p className="note">Add a pay schedule so the starting amount can follow your earnings.</p>
           )}
         </div>
 
@@ -304,7 +308,11 @@ export default function Checklist({
           <div>
             <div className="label">Starting amount</div>
             <div className="checklist-remain num" aria-live="polite">{money(starting)}</div>
-            <p className="note">From next paycheck · not editable</p>
+            <p className="note">
+              {selected?.range
+                ? `${selected.range.span === 14 ? '2-week' : `${selected.range.span}-day`} total · not editable`
+                : 'From pay period · not editable'}
+            </p>
           </div>
           <div>
             <div className="label">Remaining now</div>
