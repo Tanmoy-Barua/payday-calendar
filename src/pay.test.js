@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { payOnOrAfter, payBefore, periodFor, lagOf, listPastPaychecks } from './pay.js'
+import { payOnOrAfter, payBefore, periodFor, lagOf, listPastPaychecks, cardTotalRange, normalizeCardTotal } from './pay.js'
 import { totals, workDays, workShifts, monthRange, halfMonthRanges } from './calc.js'
 
 const company = { id: 'company', freq: 'biweeklyThu', anchor: '2026-10-01', weekEnd: 'sun', lag: 0 }
@@ -21,6 +21,19 @@ test('saturday week end delays the check by 5 days', () => {
   assert.equal(lagOf(job), 5)
   assert.equal(per.start, '2026-09-27')
   assert.equal(per.end, '2026-10-10')
+})
+
+test('cardTotalRange can use this month or last N days for the top total', () => {
+  const job = { id: 'uber', freq: 'daily', anchor: '2026-10-01', cardTotal: 'month' }
+  const month = cardTotalRange(job, '2026-10-11')
+  assert.equal(month.mode, 'month')
+  assert.equal(month.start, '2026-10-01')
+  assert.equal(month.end, '2026-10-31')
+  assert.equal(month.title, 'This month')
+  const fifteen = cardTotalRange({ ...job, cardTotal: '15' }, '2026-10-11')
+  assert.equal(fifteen.start, '2026-09-27')
+  assert.equal(fifteen.end, '2026-10-11')
+  assert.equal(normalizeCardTotal('nope'), 'paycheck')
 })
 
 test('daily pay treats each day as its own paycheck', () => {

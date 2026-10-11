@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { P, add, fmtLong, fmtShort, fmtShiftRange, hrs, localToday, money, uid } from '../dates.js'
-import { FREQ, payOnOrAfter, periodContaining } from '../pay.js'
+import { CARD_TOTALS, FREQ, normalizeCardTotal, payOnOrAfter, periodContaining } from '../pay.js'
 import { entriesOn, totals } from '../calc.js'
 import { jobColor } from './Cards.jsx'
 
@@ -179,6 +179,9 @@ function JobList({ jobs, today, confirmDel, onDone, onEdit, onAskRemove, onRemov
                 {j.freq === 'biweeklyThu'
                   ? ` · weeks end ${j.weekEnd === 'sat' ? 'Saturday' : 'Sunday'}`
                   : (j.lag ? ` · ${j.lag}-day delay` : '')}
+                {j.cardTotal && j.cardTotal !== 'paycheck'
+                  ? ` · card: ${CARD_TOTALS[normalizeCardTotal(j.cardTotal)] || j.cardTotal}`
+                  : ''}
               </div>
             </div>
             {confirmDel === j.id ? (
@@ -219,6 +222,7 @@ function JobForm({ jobs, editingJob, onCancel, onSave }) {
   const [weekEnd, setWeekEnd] = useState(existing?.weekEnd === 'sat' ? 'sat' : 'sun')
   const [lag, setLag] = useState(existing?.lag || 0)
   const [rate, setRate] = useState(existing?.rate ?? '')
+  const [cardTotal, setCardTotal] = useState(normalizeCardTotal(existing?.cardTotal))
   const [color, setColor] = useState(Number(existing?.color ?? (jobs.length % 7)))
 
   useEffect(() => { nameRef.current?.focus() }, [])
@@ -237,6 +241,7 @@ function JobForm({ jobs, editingJob, onCancel, onSave }) {
       lag: Math.max(0, parseInt(lag, 10) || 0),
       weekEnd,
       rate: rate === '' ? '' : Number(rate),
+      cardTotal: normalizeCardTotal(cardTotal),
       color: Number(color) || 0,
     })
   }
@@ -295,6 +300,17 @@ function JobForm({ jobs, editingJob, onCancel, onSave }) {
             <label className="label" htmlFor="jRate">Hourly rate ($, optional)</label>
             <input id="jRate" type="number" min="0" step="0.01" value={rate} placeholder="—" onChange={ev => setRate(ev.target.value)} />
             <div className="hint">Fills in pay from hours when you leave pay empty.</div>
+          </div>
+        </div>
+        <div className="field">
+          <label className="label" htmlFor="jCardTotal">Top card total shows</label>
+          <select id="jCardTotal" value={cardTotal} onChange={ev => setCardTotal(ev.target.value)}>
+            {Object.entries(CARD_TOTALS).map(([k, v]) => (
+              <option key={k} value={k}>{v}</option>
+            ))}
+          </select>
+          <div className="hint">
+            For Amazon Flex or Uber, pick This calendar month to show how much you earned this month on the top card.
           </div>
         </div>
         <div className="field">

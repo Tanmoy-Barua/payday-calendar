@@ -1,5 +1,5 @@
-import { P, add, diff, lastDom, ymd } from './dates.js'
-import { totals, workDays, workShifts } from './calc.js'
+import { P, add, diff, fmtMonth, lastDom, ymd } from './dates.js'
+import { monthRange, totals, workDays, workShifts } from './calc.js'
 
 export const FREQ = {
   daily: 'Every day',
@@ -8,6 +8,57 @@ export const FREQ = {
   biweekly: 'Every 2 weeks',
   semimonthly: '15th & last day',
   monthly: 'Once a month',
+}
+
+/** What the top paycheck card total covers for this schedule. */
+export const CARD_TOTALS = {
+  paycheck: 'Next paycheck period',
+  month: 'This calendar month',
+  '15': 'Last 15 days',
+  '30': 'Last 30 days',
+  '7': 'Last 7 days',
+}
+
+export function normalizeCardTotal(value) {
+  const key = String(value || 'paycheck')
+  return Object.prototype.hasOwnProperty.call(CARD_TOTALS, key) ? key : 'paycheck'
+}
+
+/** Range + labels for the big total on a job card. */
+export function cardTotalRange(job, today) {
+  const mode = normalizeCardTotal(job?.cardTotal)
+  if (mode === 'month') {
+    const ym = String(today).slice(0, 7)
+    const [y, m] = ym.split('-').map(Number)
+    const range = monthRange(ym)
+    return {
+      mode,
+      start: range.start,
+      end: range.end,
+      title: 'This month',
+      subtitle: fmtMonth(y, m),
+    }
+  }
+  if (mode === '7' || mode === '15' || mode === '30') {
+    const n = Number(mode)
+    return {
+      mode,
+      start: add(today, -(n - 1)),
+      end: today,
+      title: `Last ${n} days`,
+      subtitle: `${n}-day total`,
+    }
+  }
+  const next = payOnOrAfter(job, today)
+  const per = periodFor(job, next)
+  return {
+    mode: 'paycheck',
+    start: per.start,
+    end: per.end,
+    payday: next,
+    title: 'Next paycheck',
+    subtitle: null,
+  }
 }
 
 export const lagOf = job => job.freq === 'biweeklyThu' ? (job.weekEnd === 'sat' ? 5 : 4) : (Number(job.lag) || 0)

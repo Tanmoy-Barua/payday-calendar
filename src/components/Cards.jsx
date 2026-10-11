@@ -1,5 +1,5 @@
 import { add, diff, fmtLong, fmtShort, fmtTodayLine, hrs, money } from '../dates.js'
-import { payOnOrAfter, periodFor } from '../pay.js'
+import { CARD_TOTALS, cardTotalRange, payOnOrAfter, periodFor } from '../pay.js'
 import { totals, workDays } from '../calc.js'
 
 export function jobColor(j) {
@@ -31,12 +31,17 @@ export default function Cards({ jobs, months, today, onAddSchedule }) {
       ) : jobs.map(j => {
         const next = payOnOrAfter(j, today)
         const per = periodFor(j, next)
-        const sum = totals(months, per.start, per.end, j.id)
+        const window = cardTotalRange(j, today)
+        const sum = totals(months, window.start, window.end, j.id)
+        const worked = workDays(months, window.start, window.end, j.id)
         const days = diff(today, next)
         const cd = days === 0 ? 'Payday today' : days === 1 ? 'Tomorrow' : `In ${days} days`
         const after = today > per.end
         const nextPer = after ? periodFor(j, payOnOrAfter(j, add(next, 1))) : null
         const later = nextPer ? totals(months, nextPer.start, nextPer.end, j.id) : null
+        const subtitle = window.mode === 'paycheck'
+          ? fmtTodayLine(next)
+          : window.subtitle
         return (
           <div className="card" key={j.id}>
             <div className="top">
@@ -47,21 +52,25 @@ export default function Cards({ jobs, months, today, onAddSchedule }) {
               <span className="countdown">{cd}</span>
             </div>
             <div>
-              <div className="label">Next paycheck</div>
-              <div className="payday">{fmtTodayLine(next)}</div>
+              <div className="label">{window.title}</div>
+              <div className="payday">{subtitle}</div>
               <div className="big num" style={{ marginTop: 4 }}>{money(sum.a)}</div>
             </div>
             <div className="stats">
               <div><span className="label">Hours</span><span className="v">{hrs(sum.h)}</span></div>
               <div><span className="label">Per hour</span><span className="v">{sum.h ? money(sum.a / sum.h) : '—'}</span></div>
-              <div><span className="label">Days worked</span><span className="v">{workDays(months, per.start, per.end, j.id)}</span></div>
+              <div><span className="label">Days worked</span><span className="v">{worked}</span></div>
             </div>
             <div className="note">
-              {`Covers work ${fmtShort(per.start)} – ${fmtShort(per.end)}`}
+              {`Covers ${fmtShort(window.start)} – ${fmtShort(window.end)}`}
               {j.rate ? ` · ${money(Number(j.rate))}/h` : ''}
+              {window.mode !== 'paycheck' ? ` · next payday ${fmtShort(next)}` : ''}
             </div>
-            {after && nextPer ? (
+            {window.mode === 'paycheck' && after && nextPer ? (
               <div className="note">Work from today counts toward {fmtShort(nextPer.payday)} (so far {money(later.a)}).</div>
+            ) : null}
+            {window.mode !== 'paycheck' ? (
+              <div className="note">{CARD_TOTALS[window.mode]} on this card.</div>
             ) : null}
           </div>
         )
