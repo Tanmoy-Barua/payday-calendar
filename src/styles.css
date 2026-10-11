@@ -156,6 +156,8 @@ header .status{grid-column:1/-1;order:3}
   .actions .btn{flex:1}
   .entry{grid-template-columns:auto minmax(0,1fr) auto;grid-template-areas:"dot name del" ". amt amt";row-gap:2px}
   .entry .dot{grid-area:dot}.entry .name{grid-area:name}.entry .num{grid-area:amt}.entry .btn{grid-area:del;min-height:36px}
+  .check-fields,.check-row.is-debt .check-fields{grid-template-columns:1fr}
+  .check-amount{max-width:160px}
 }
 /* small phones */
 @media (max-width:480px){
