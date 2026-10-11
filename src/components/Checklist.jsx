@@ -96,7 +96,7 @@ function ItemRow({ item, debts, onChange, onRemove }) {
           <input
             className="check-name"
             type="text"
-            placeholder={item.separate ? 'Card or note' : 'What this payment is'}
+            placeholder={item.separate ? 'Note' : 'Name'}
             value={item.name}
             onChange={ev => patch({ name: ev.target.value })}
           />
