@@ -460,11 +460,6 @@ export default function App() {
             </a>
           </nav>
         </div>
-        {lockOn && page !== 'settings' ? (
-          <div className="hdr-lock">
-            <button className="btn ghost" type="button" onClick={lockNow}>Lock now</button>
-          </div>
-        ) : null}
         <span className={`status${/could not|try again|not available|failed/i.test(status) ? ' bad' : ''}`} id="status">{status}</span>
       </header>
       {page === 'calendar' ? (
