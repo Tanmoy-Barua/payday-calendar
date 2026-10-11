@@ -45,7 +45,7 @@ test('running steps match the corrected notepad chain', () => {
   assert.equal(remaining, 74)
 })
 
-test('starting amount can follow the next paycheck', () => {
+test('starting amount is taken from the next paycheck source', () => {
   const jobs = [{
     id: 'company',
     name: 'APS-SECURITY COMPANY',
@@ -69,6 +69,9 @@ test('starting amount can follow the next paycheck', () => {
   assert.equal(note.starting, 295.04)
   assert.equal(note.paycheckDate, '2026-10-15')
   assert.match(note.paycheckLabel, /APS-SECURITY COMPANY/)
+  // Locked starting always mirrors paycheck amount when re-applied
+  const again = applyPaycheckSource({ ...note, starting: 2200 }, checks[0])
+  assert.equal(again.starting, 295.04)
 })
 
 test('closing a paycheck keeps history and resets paid marks', () => {
