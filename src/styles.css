@@ -219,6 +219,16 @@ form{display:grid;gap:10px}
 .history-body{padding:0 12px 12px;border-top:1px solid var(--line)}
 .history-list{list-style:none;margin:8px 0 0;padding:0;display:grid;gap:6px}
 .history-list li{display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px solid var(--line)}
+.past-paychecks{margin-top:0}
+.past-list{display:grid;gap:10px;margin-top:4px}
+.past-row{
+  display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:12px 16px;align-items:center;
+  padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--bg);min-width:0;
+}
+.past-main{display:grid;gap:4px;min-width:0}
+.past-payday{font-family:var(--display);font-weight:700;font-size:clamp(16px,3.5vw,18px);letter-spacing:-.01em}
+.past-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.past-stats .v{font-family:var(--mono);font-weight:600;font-size:15px}
 
 [hidden]{display:none !important}
 
@@ -314,6 +324,8 @@ select{text-overflow:ellipsis}
   .paycheck-source{padding:12px;border-radius:12px}
   .paycheck-actions{display:grid;grid-template-columns:1fr;gap:8px}
   .paycheck-actions .btn{width:100%}
+  .past-row{grid-template-columns:1fr;gap:10px}
+  .past-stats{grid-template-columns:repeat(2,minmax(0,1fr))}
   .check-row{gap:6px;padding:7px 0}
   .check-fields{grid-template-columns:4.75rem minmax(0,1fr) 3.5rem;gap:6px}
   .check-fields:not(:has(.check-category)):not(:has(.check-debt)){grid-template-columns:minmax(0,1fr) 3.5rem}

@@ -1,4 +1,5 @@
 import { P, add, diff, lastDom, ymd } from './dates.js'
+import { totals, workDays } from './calc.js'
 
 export const FREQ = {
   biweeklyThu: 'Every 2 weeks, paid Thursday of 3rd week',
@@ -60,4 +61,61 @@ export function periodFor(job, payday) {
 export function periodContaining(job, day) {
   const p = payOnOrAfter(job, add(day, lagOf(job)))
   return periodFor(job, p)
+}
+
+function earliestLoggedDay(months, jobId) {
+  let earliest = ''
+  for (const month of Object.values(months || {})) {
+    for (const [day, entries] of Object.entries(month?.days || {})) {
+      if (!(entries || []).some(e => !jobId || e.job === jobId)) continue
+      if (!earliest || day < earliest) earliest = day
+    }
+  }
+  return earliest
+}
+
+/**
+ * Past paydays (before today) with hours/pay from logged work.
+ * Walks backward from the last completed payday for each schedule.
+ */
+export function listPastPaychecks(jobs, months, today, { jobId = '', limit = 36 } = {}) {
+  const list = []
+  const selected = (jobs || []).filter(job => !jobId || job.id === jobId)
+  for (const job of selected) {
+    const firstLog = earliestLoggedDay(months, job.id)
+    if (!firstLog) continue
+    let payday = payBefore(job, payOnOrAfter(job, today))
+    // If today is exactly a payday, payBefore already steps back one cycle.
+    let guard = 0
+    while (payday && payday < today && guard++ < 80) {
+      const period = periodFor(job, payday)
+      if (period.end < firstLog && period.start < firstLog) {
+        // Entire period is before any logged work — stop for this job.
+        if (payday < firstLog) break
+      }
+      const sum = totals(months, period.start, period.end, job.id)
+      if (sum.h > 0 || sum.a > 0) {
+        list.push({
+          id: `${job.id}-${payday}`,
+          jobId: job.id,
+          jobName: job.name,
+          color: job.color,
+          payday,
+          start: period.start,
+          end: period.end,
+          hours: sum.h,
+          amount: Math.round((sum.a || 0) * 100) / 100,
+          days: workDays(months, period.start, period.end, job.id),
+          rate: sum.h > 0 ? Math.round((sum.a / sum.h) * 100) / 100 : 0,
+        })
+      }
+      const prev = payBefore(job, payday)
+      if (!prev || prev >= payday) break
+      payday = prev
+      if (period.end < firstLog) break
+    }
+  }
+  return list
+    .sort((a, b) => b.payday.localeCompare(a.payday) || a.jobName.localeCompare(b.jobName))
+    .slice(0, limit)
 }

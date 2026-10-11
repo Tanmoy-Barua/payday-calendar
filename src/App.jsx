@@ -29,6 +29,7 @@ import {
 } from './lock.js'
 import Cards from './components/Cards.jsx'
 import Calendar from './components/Calendar.jsx'
+import PastPaychecks from './components/PastPaychecks.jsx'
 import Side from './components/Side.jsx'
 import Spend from './components/Spend.jsx'
 import Debt from './components/Debt.jsx'
@@ -558,6 +559,7 @@ export default function App() {
               onSave={saveJob}
             />
           </div>
+          <PastPaychecks jobs={jobs} months={months} today={today} filter={filter} />
         </>
       ) : null}
     </div>
