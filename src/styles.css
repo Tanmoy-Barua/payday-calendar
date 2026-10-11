@@ -310,15 +310,18 @@ select{text-overflow:ellipsis}
   .paycheck-actions{display:grid;grid-template-columns:1fr;gap:8px}
   .paycheck-actions .btn{width:100%}
   .check-row{gap:6px;padding:7px 0}
-  .check-fields{grid-template-columns:5.5rem minmax(0,1fr) 3.5rem;gap:6px}
+  .check-fields{grid-template-columns:6.25rem minmax(0,1fr) 3.5rem;gap:6px}
   .check-fields:not(:has(.check-category)):not(:has(.check-debt)){grid-template-columns:minmax(0,1fr) 3.5rem}
-  .check-category{max-width:5.5rem;width:100%}
-  .check-category select{width:100%;padding:8px 1.6rem 8px 8px}
+  .check-category{max-width:6.25rem;width:100%}
+  .check-category select{width:100%;padding:8px 1.75rem 8px 8px}
   .check-name,.check-amount,.check-debt select{padding-inline:8px}
   .check-amount{max-width:none}
   .check-remove{min-width:32px;padding-inline:6px}
   .check-debt-hint{grid-column:2 / -1}
-  .settings-choice{padding:8px 10px}
+  .settings-choices{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+  .settings-choice{grid-template-columns:1fr;justify-items:center;text-align:center;gap:4px;padding:10px 6px}
+  .settings-choice input{margin:0}
+  .settings-choice strong{font-size:13px}
   .settings-choice .note{display:none}
   .debt-pay{grid-template-columns:1fr auto;gap:4px 10px}
   .debt-pay .note{grid-column:1 / -1}
