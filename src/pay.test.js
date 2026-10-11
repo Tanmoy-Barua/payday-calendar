@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { payOnOrAfter, payBefore, periodFor, lagOf, listPastPaychecks } from './pay.js'
-import { totals, workDays, workShifts } from './calc.js'
+import { totals, workDays, workShifts, monthRange, halfMonthRanges } from './calc.js'
 
 const company = { id: 'company', freq: 'biweeklyThu', anchor: '2026-10-01', weekEnd: 'sun', lag: 0 }
 
@@ -38,6 +38,14 @@ test('daily pay treats each day as its own paycheck', () => {
     end: '2026-10-10',
     payday: '2026-10-11',
   })
+})
+
+test('month and half-month ranges cover the calendar month', () => {
+  assert.deepEqual(monthRange('2026-10'), { start: '2026-10-01', end: '2026-10-31' })
+  const halves = halfMonthRanges('2026-10')
+  assert.deepEqual(halves.first, { start: '2026-10-01', end: '2026-10-15', label: '1st – 15th' })
+  assert.deepEqual(halves.second, { start: '2026-10-16', end: '2026-10-31', label: '16th – end' })
+  assert.deepEqual(monthRange('2026-02'), { start: '2026-02-01', end: '2026-02-28' })
 })
 
 test('workDays counts unique days with hours, matching totals range scan', () => {

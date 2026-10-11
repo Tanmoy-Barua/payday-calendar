@@ -29,6 +29,7 @@ import {
 } from './lock.js'
 import Cards from './components/Cards.jsx'
 import Calendar from './components/Calendar.jsx'
+import EarningsSummary from './components/EarningsSummary.jsx'
 import PastPaychecks from './components/PastPaychecks.jsx'
 import Side from './components/Side.jsx'
 import Spend from './components/Spend.jsx'
@@ -523,6 +524,7 @@ export default function App() {
       {ready && page === 'calendar' ? (
         <>
           <Cards jobs={jobs} months={months} today={today} onAddSchedule={openJobForm} />
+          <EarningsSummary months={months} view={view} today={today} filter={filter} jobs={jobs} />
           <div className="main">
             <Calendar
               jobs={jobs}

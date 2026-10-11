@@ -62,6 +62,15 @@ button,select,input{font:inherit;color:inherit;max-width:100%}
 .stats .v{font-family:var(--mono);font-weight:600;font-size:15px}
 .note{font-size:13px;color:var(--muted)}
 .today{background:var(--accent-soft);border-color:transparent}
+.earnings-summary{gap:12px}
+.earn-head h2{margin:0}
+.earn-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.earn-card{
+  display:grid;gap:4px;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--bg);min-width:0;
+}
+.earn-card.is-current{border-color:var(--accent);background:color-mix(in srgb, var(--accent) 8%, var(--bg))}
+.earn-amount{font-family:var(--display);font-weight:800;font-size:clamp(22px,4vw,28px);letter-spacing:-.02em;line-height:1.05}
+.earn-meta{display:flex;flex-wrap:wrap;gap:6px;font-family:var(--mono);font-size:13px;font-weight:600;color:var(--muted)}
 
 /* main grid */
 .main{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:18px;align-items:start}
@@ -328,6 +337,7 @@ select{text-overflow:ellipsis}
   .paycheck-source{padding:12px;border-radius:12px}
   .paycheck-actions{display:grid;grid-template-columns:1fr;gap:8px}
   .paycheck-actions .btn{width:100%}
+  .earn-grid{grid-template-columns:1fr;gap:8px}
   .past-row{grid-template-columns:1fr;gap:12px}
   .past-side{justify-items:start;text-align:left}
   .past-meta{width:100%;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px 12px}
