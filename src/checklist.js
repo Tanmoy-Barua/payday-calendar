@@ -226,6 +226,15 @@ export function allCompaniesTwoWeeks(jobs, months, today) {
   const paydays = (jobs || []).map(job => payOnOrAfter(job, today)).sort()
   const payday = paydays[0] || range.end
   const rangeText = `${fmtShort(range.start)}–${fmtShort(range.end)}`
+  const breakdown = (jobs || []).map(job => {
+    const part = totals(months, range.start, range.end, job.id)
+    return {
+      jobId: job.id,
+      jobName: job.name,
+      amount: money2(part.a),
+    }
+  }).filter(row => row.amount > 0)
+    .sort((a, b) => b.amount - a.amount || a.jobName.localeCompare(b.jobName))
   return {
     jobId: ALL_COMPANIES_ID,
     jobName: 'All companies',
@@ -235,6 +244,7 @@ export function allCompaniesTwoWeeks(jobs, months, today) {
     range,
     cardMode: '14',
     isAllCompanies: true,
+    breakdown,
     label: `All companies · 2 weeks ${rangeText}`,
   }
 }

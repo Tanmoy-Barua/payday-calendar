@@ -188,6 +188,10 @@ form{display:grid;gap:10px}
 .checklist-hero .checklist-stats{display:grid;gap:14px;margin-top:8px}
 .checklist-grid{display:grid;gap:12px}
 .checklist-remain{font-family:var(--display);font-size:clamp(28px,5vw,40px);font-weight:700;line-height:1.05;overflow-wrap:anywhere}
+.starting-breakdown{list-style:none;margin:10px 0 0;padding:8px 0 0;border-top:1px solid var(--line);display:grid;gap:6px}
+.starting-breakdown li{display:flex;justify-content:space-between;align-items:baseline;gap:12px;min-width:0}
+.starting-breakdown-name{min-width:0;overflow-wrap:anywhere;color:var(--muted);font-size:13px;line-height:1.3}
+.starting-breakdown-amount{flex:none;font-variant-numeric:tabular-nums;font-size:14px;font-weight:600}
 .check-list{display:grid;gap:0;margin:12px 0}
 .check-row{
   display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:8px;align-items:center;
@@ -260,7 +264,7 @@ select{text-overflow:ellipsis}
 @media (min-width:821px){
   .debt-top{grid-template-columns:1fr 1fr;align-items:stretch}
   .debt-top .card{height:100%}
-  .checklist-hero .checklist-stats{grid-template-columns:1.1fr 1fr 1fr;align-items:end}
+  .checklist-hero .checklist-stats{grid-template-columns:1.1fr 1fr 1fr;align-items:start}
   .checklist-grid{grid-template-columns:1.2fr 1fr;align-items:start}
   .settings-choices{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
   .settings-choice{align-content:start;align-items:start;padding:12px}

@@ -92,6 +92,11 @@ test('starting amount defaults to all companies over 2 weeks', () => {
   assert.equal(checks[0].range.end, '2026-10-11')
   assert.equal(checks[0].amount, 415.04)
   assert.match(checks[0].label, /All companies · 2 weeks/)
+  assert.deepEqual(checks[0].breakdown, [
+    { jobId: 'company', jobName: 'APS-SECURITY COMPANY', amount: 295.04 },
+    { jobId: 'flex', jobName: 'Amazon Flex', amount: 80 },
+    { jobId: 'uber', jobName: 'Uber', amount: 40 },
+  ])
   const company = checks.find(row => row.jobId === 'company')
   assert.equal(company.payday, '2026-10-15')
   assert.equal(company.amount, 295.04)

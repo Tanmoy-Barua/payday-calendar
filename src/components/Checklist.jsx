@@ -323,6 +323,16 @@ export default function Checklist({
                   ? `${selected.range.span === 14 ? '2-week' : `${selected.range.span}-day`} total · not editable`
                   : 'From pay period · not editable'}
             </p>
+            {selected?.jobId === ALL_COMPANIES_ID && selected.breakdown?.length ? (
+              <ul className="starting-breakdown" aria-label="Starting amount by company">
+                {selected.breakdown.map(row => (
+                  <li key={row.jobId}>
+                    <span className="starting-breakdown-name">{row.jobName}</span>
+                    <span className="num starting-breakdown-amount">{money(row.amount)}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
           </div>
           <div>
             <div className="label">Remaining now</div>
