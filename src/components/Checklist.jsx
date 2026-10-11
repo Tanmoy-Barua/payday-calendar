@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { fmtShort, localToday, money } from '../dates.js'
 import {
   ITEM_CATEGORIES,
@@ -202,26 +202,24 @@ export default function Checklist({
     || paychecks.find(row => row.jobId === note.jobId)
     || paychecks[0]
     || null
+  // Starting amount always comes from the selected next paycheck — not editable.
+  const starting = selected ? selected.amount : 0
   const mainItems = note.items.filter(item => !item.separate)
   const otherItems = note.items.filter(item => item.separate)
-  const left = remainingAfterPaid(note.starting, note.items)
-  const planned = plannedRemaining(note.starting, note.items)
-  const { steps } = runningSteps(note.starting, note.items)
+  const left = remainingAfterPaid(starting, note.items)
+  const planned = plannedRemaining(starting, note.items)
+  const { steps } = runningSteps(starting, note.items)
   const paidCount = mainItems.filter(item => item.paid).length
   const history = note.history || []
 
   function commitItems(nextItems) {
     const synced = syncDebtsWithChecklist(debts, note.items, nextItems, { today })
-    onSave({ ...note, items: synced.items })
+    onSave({ ...note, starting, items: synced.items })
     if (onSaveDebts) onSaveDebts(synced.debts)
   }
 
   function update(next) {
     onSave(next)
-  }
-
-  function setStarting(value) {
-    update({ ...note, starting: value })
   }
 
   function setItem(nextItem) {
@@ -242,15 +240,23 @@ export default function Checklist({
     update(applyPaycheckSource(note, paycheck))
   }
 
-  function useSelectedPaycheck() {
+  useEffect(() => {
     if (!selected) return
+    const linked =
+      note.jobId === selected.jobId
+      && note.paycheckDate === selected.payday
+      && Number(note.starting) === Number(selected.amount)
+      && note.paycheckLabel === selected.label
+    if (linked) return
     update(applyPaycheckSource(note, selected))
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected?.jobId, selected?.payday, selected?.amount, selected?.label])
 
   function closeCurrent() {
     if (!window.confirm('Close this paycheck budget and save it to history? Paid marks will reset for the next check. Debt payments already logged stay on the Debt page.')) return
-    const nextPay = nextPaycheckAfter(jobs, months, note.paycheckDate || selected?.payday, note.jobId || selected?.jobId)
-    const { budget: closed } = closePaycheckBudget(note, { nextPaycheck: nextPay })
+    const linkedNote = selected ? applyPaycheckSource(note, selected) : { ...note, starting }
+    const nextPay = nextPaycheckAfter(jobs, months, linkedNote.paycheckDate || selected?.payday, linkedNote.jobId || selected?.jobId)
+    const { budget: closed } = closePaycheckBudget(linkedNote, { nextPaycheck: nextPay })
     update(closed)
   }
 
@@ -260,7 +266,7 @@ export default function Checklist({
         <div className="label">Notepad</div>
         <h2>{note.title || 'Budget Note'}</h2>
         <p className="note">
-          Starting amount follows your next paycheck. Set a payment category to Debt to pick a debt name — when you mark it paid, that amount is deducted on the Debt page.
+          Starting amount is locked to your next paycheck. Set a payment category to Debt to pick a debt name — when you mark it paid, that amount is deducted on the Debt page.
         </p>
 
         <div className="paycheck-source">
@@ -280,40 +286,23 @@ export default function Checklist({
             </select>
           </label>
           <div className="paycheck-actions">
-            <button className="btn primary" type="button" disabled={!selected} onClick={useSelectedPaycheck}>
-              Use as starting amount
-            </button>
-            <button className="btn" type="button" onClick={closeCurrent}>
+            <button className="btn primary" type="button" onClick={closeCurrent}>
               Close paycheck & save history
             </button>
           </div>
-          {note.paycheckLabel ? (
-            <p className="note">Linked to {note.paycheckLabel}</p>
+          {selected ? (
+            <p className="note">Starting amount updates automatically from this paycheck.</p>
           ) : (
-            <p className="note">Choose a paycheck, then use it as the starting amount for this notepad.</p>
+            <p className="note">Add a pay schedule so the starting amount can follow your next paycheck.</p>
           )}
         </div>
 
         <div className="checklist-stats">
-          <label className="field">
-            <span className="label">Starting amount</span>
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              inputMode="decimal"
-              value={note.starting === '' || note.starting == null ? '' : note.starting}
-              onChange={ev => {
-                const next = ev.target.value
-                if (next === '') {
-                  setStarting('')
-                  return
-                }
-                if (!/^\d*\.?\d*$/.test(next)) return
-                setStarting(next)
-              }}
-            />
-          </label>
+          <div>
+            <div className="label">Starting amount</div>
+            <div className="checklist-remain num" aria-live="polite">{money(starting)}</div>
+            <p className="note">From next paycheck · not editable</p>
+          </div>
           <div>
             <div className="label">Remaining now</div>
             <div className="checklist-remain num">{money(left)}</div>
@@ -352,7 +341,7 @@ export default function Checklist({
           <ol className="check-math">
             <li>
               <span>Starting</span>
-              <span className="num">{money(Number(note.starting) || 0)}</span>
+              <span className="num">{money(starting)}</span>
             </li>
             {steps.map(step => (
               <li key={step.id} className={step.paid ? 'is-paid' : ''}>
