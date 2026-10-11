@@ -46,6 +46,20 @@ function hoursBetween(start, end) {
   return Math.round((ms / 3_600_000) * 100) / 100
 }
 
+/** Parse RFC 5545 DURATION (e.g. PT8H, PT8H30M, P1DT2H). */
+export function parseDurationHours(value) {
+  const raw = String(value || '').trim().toUpperCase()
+  const m = raw.match(/^P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+(?:\.\d+)?)S)?)?$/)
+  if (!m) return 0
+  const days = Number(m[1] || 0)
+  const hours = Number(m[2] || 0)
+  const mins = Number(m[3] || 0)
+  const secs = Number(m[4] || 0)
+  const total = days * 24 + hours + mins / 60 + secs / 3600
+  if (!Number.isFinite(total) || total <= 0) return 0
+  return Math.round(total * 100) / 100
+}
+
 /** Parse VEVENT blocks into shift rows. */
 export function parseIcsEvents(text) {
   const unfolded = unfoldIcs(text)
@@ -55,10 +69,17 @@ export function parseIcsEvents(text) {
   while ((match = re.exec(unfolded))) {
     const props = splitProps(match[1])
     const start = parseIcsDate(props.DTSTART?.value)
+    if (!start) continue
     const end = parseIcsDate(props.DTEND?.value)
-    if (!start || !end) continue
-    const hours = hoursBetween(start.date, end.date)
-    if (hours <= 0) continue
+    let hours = 0
+    let endDate = end?.date || null
+    if (endDate) {
+      hours = hoursBetween(start.date, endDate)
+    } else if (props.DURATION?.value) {
+      hours = parseDurationHours(props.DURATION.value)
+      if (hours > 0) endDate = new Date(start.date.getTime() + hours * 3_600_000)
+    }
+    if (hours <= 0 || !endDate) continue
     const uid = String(props.UID?.value || `${start.day}-${hours}`).trim()
     events.push({
       uid,
@@ -66,7 +87,7 @@ export function parseIcsEvents(text) {
       hours,
       summary: String(props.SUMMARY?.value || 'Shift').replace(/\\,/g, ',').replace(/\\n/g, ' '),
       start: start.date.toISOString(),
-      end: end.date.toISOString(),
+      end: endDate.toISOString(),
     })
   }
   return events.sort((a, b) => (a.day < b.day ? -1 : a.day > b.day ? 1 : 0))

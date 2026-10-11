@@ -72,6 +72,15 @@ export function dedupeShifts(shifts) {
 export function applyConnecteamShifts(months, shifts, { jobId, rate } = {}) {
   if (!jobId) throw new Error('Pick a pay schedule to attach Connecteam shifts to.')
   const unique = dedupeShifts(shifts)
+  // Empty feed must not wipe previously imported Connecteam hours.
+  if (!unique.length) {
+    return {
+      months: months || {},
+      added: 0,
+      shifts: 0,
+      days: 0,
+    }
+  }
   const syncDays = new Set(unique.map(shift => shift.day))
 
   const next = {}
@@ -80,6 +89,8 @@ export function applyConnecteamShifts(months, shifts, { jobId, rate } = {}) {
     for (const [day, entries] of Object.entries(month?.days || {})) {
       days[day] = (entries || []).filter(e => {
         if (e.job !== jobId) return true
+        // Feed days: replace every hour for this job. Other days: drop only
+        // prior Connecteam rows so cancelled shifts disappear, keep manuals.
         if (syncDays.has(day)) return false
         return !isConnecteamEntry(e, jobId)
       })
@@ -100,6 +111,7 @@ export function applyConnecteamShifts(months, shifts, { jobId, rate } = {}) {
       job: jobId,
       hours: Number(shift.hours),
       amount: money2((Number(shift.hours) || 0) * hourly),
+      source: 'connecteam',
     })
     days[shift.day] = list
     added += 1

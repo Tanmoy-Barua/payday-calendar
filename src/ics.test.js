@@ -79,3 +79,30 @@ test('duplicate ICS events for the same shift are collapsed', () => {
   ])
   assert.equal(shifts.length, 1)
 })
+
+test('parses VEVENT with DURATION instead of DTEND', () => {
+  const events = parseIcsEvents(`BEGIN:VCALENDAR
+BEGIN:VEVENT
+UID:dur-1
+DTSTART:20261012T090000
+DURATION:PT8H30M
+SUMMARY:Duration shift
+END:VEVENT
+END:VCALENDAR`)
+  assert.equal(events.length, 1)
+  assert.equal(events[0].day, '2026-10-12')
+  assert.equal(events[0].hours, 8.5)
+})
+
+test('empty Connecteam feed does not wipe existing imported hours', () => {
+  const months = {
+    '2026-10': {
+      days: {
+        '2026-10-10': [{ id: 'cteam-keep', job: 'company', hours: 8, amount: 100, source: 'connecteam' }],
+      },
+    },
+  }
+  const { months: next, added } = applyConnecteamShifts(months, [], { jobId: 'company', rate: 18 })
+  assert.equal(added, 0)
+  assert.equal(next['2026-10'].days['2026-10-10'][0].hours, 8)
+})

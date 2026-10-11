@@ -798,6 +798,20 @@ function parseIcsDateValue(string $value): ?DateTimeImmutable {
     return null;
 }
 
+function parseDurationHours(string $value): float {
+    $raw = strtoupper(trim($value));
+    if (!preg_match('/^P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+(?:\.\d+)?)S)?)?$/', $raw, $m)) {
+        return 0.0;
+    }
+    $days = (float)($m[1] ?? 0);
+    $hours = (float)($m[2] ?? 0);
+    $mins = (float)($m[3] ?? 0);
+    $secs = (float)($m[4] ?? 0);
+    $total = $days * 24 + $hours + $mins / 60 + $secs / 3600;
+    if ($total <= 0) return 0.0;
+    return round($total, 2);
+}
+
 function parseIcsEvents(string $text): array {
     $unfolded = unfoldIcs($text);
     if (!preg_match_all('/BEGIN:VEVENT(.*?)END:VEVENT/si', $unfolded, $blocks)) return [];
@@ -807,6 +821,7 @@ function parseIcsEvents(string $text): array {
         $summary = 'Shift';
         $startRaw = '';
         $endRaw = '';
+        $durationRaw = '';
         foreach (explode("\n", $block) as $line) {
             if ($line === '' || str_starts_with($line, 'BEGIN:') || str_starts_with($line, 'END:')) continue;
             $colon = strpos($line, ':');
@@ -818,12 +833,21 @@ function parseIcsEvents(string $text): array {
             if ($key === 'SUMMARY') $summary = str_replace(['\\,', '\\n'], [',', ' '], trim($value));
             if ($key === 'DTSTART') $startRaw = $value;
             if ($key === 'DTEND') $endRaw = $value;
+            if ($key === 'DURATION') $durationRaw = $value;
         }
         $start = parseIcsDateValue($startRaw);
-        $end = parseIcsDateValue($endRaw);
-        if (!$start || !$end) continue;
-        $hours = round(($end->getTimestamp() - $start->getTimestamp()) / 3600, 2);
-        if ($hours <= 0) continue;
+        if (!$start) continue;
+        $end = $endRaw !== '' ? parseIcsDateValue($endRaw) : null;
+        $hours = 0.0;
+        if ($end) {
+            $hours = round(($end->getTimestamp() - $start->getTimestamp()) / 3600, 2);
+        } elseif ($durationRaw !== '') {
+            $hours = parseDurationHours($durationRaw);
+            if ($hours > 0) {
+                $end = $start->modify('+' . (int)round($hours * 3600) . ' seconds');
+            }
+        }
+        if ($hours <= 0 || !$end) continue;
         $events[] = [
             'uid' => $uid !== '' ? $uid : ($start->format('c') . '-' . $hours),
             'day' => $start->format('Y-m-d'),

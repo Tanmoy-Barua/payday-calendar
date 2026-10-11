@@ -94,8 +94,8 @@ export default function Calendar({ jobs, months, view, selected, filter, today, 
               onClick={() => onSelectDay(d)}
             >
               <span className="d">{P(d).getUTCDate()}</span>
-              {amount ? <span className="amt" style={{ color: 'var(--accent)' }}>{moneyShort(amount)}</span> : null}
-              {hours ? <span className="hrs">{hrs(hours)}</span> : null}
+              {amount > 0 ? <span className="amt" style={{ color: 'var(--accent)' }}>{moneyShort(amount)}</span> : null}
+              {hours > 0 ? <span className={`hrs${amount > 0 ? '' : ' hrs-only'}`}>{hrs(hours)}</span> : null}
               {pj.length ? (
                 <span className="paytag">
                   {pj.map(j => <span key={j.id} style={{ background: 'var(--pay)' }} title={`${j.name} payday`}>PAY</span>)}

@@ -114,6 +114,13 @@ export default function App() {
       const data = await fetchCalendarFeed(url)
       const shifts = data.shifts || []
       const job = jobs.find(j => j.id === jobId) || jobs[0]
+      if (!shifts.length) {
+        setConnecteamMessage(
+          'No shifts found in that calendar feed yet. Pasting the link alone does not import hours — tap Sync again after Connecteam publishes shifts. Existing calendar hours were left unchanged.',
+        )
+        setStatus('Saved')
+        return
+      }
       const { months: nextMonths, added, days } = applyConnecteamShifts(months, shifts, {
         jobId: job.id,
         rate: job.rate,
@@ -128,10 +135,13 @@ export default function App() {
         await saveMonth(mk, nextMonths[mk]?.days || {})
       }
       setStatus('Saved')
+      const rateNote = Number(job.rate) > 0
+        ? ''
+        : ' Tip: set an hourly rate on this pay schedule so Calendar shows $ amounts (hours still count).'
       setConnecteamMessage(
         added
-          ? `Updated ${days} day${days === 1 ? '' : 's'} (${added} shift${added === 1 ? '' : 's'}) on ${job.name}. Replaced that job’s hours on those days — open Calendar to review.`
-          : 'No shifts found in that calendar feed yet.',
+          ? `Updated ${days} day${days === 1 ? '' : 's'} (${added} shift${added === 1 ? '' : 's'}) on ${job.name}. Open Calendar to review.${rateNote}`
+          : 'No shifts found in that calendar feed yet. Existing calendar hours were left unchanged.',
       )
     } catch (err) {
       setConnecteamMessage(err.message || 'Could not sync Connecteam calendar')
