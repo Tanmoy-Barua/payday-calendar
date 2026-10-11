@@ -310,10 +310,10 @@ select{text-overflow:ellipsis}
   .paycheck-actions{display:grid;grid-template-columns:1fr;gap:8px}
   .paycheck-actions .btn{width:100%}
   .check-row{gap:6px;padding:7px 0}
-  .check-fields{grid-template-columns:4.4rem minmax(0,1fr) 3.75rem;gap:6px}
-  .check-fields:not(:has(.check-category)):not(:has(.check-debt)){grid-template-columns:minmax(0,1fr) 3.75rem}
-  .check-category{max-width:4.4rem;width:100%}
-  .check-category select{width:100%;padding:8px 18px 8px 6px}
+  .check-fields{grid-template-columns:5.5rem minmax(0,1fr) 3.5rem;gap:6px}
+  .check-fields:not(:has(.check-category)):not(:has(.check-debt)){grid-template-columns:minmax(0,1fr) 3.5rem}
+  .check-category{max-width:5.5rem;width:100%}
+  .check-category select{width:100%;padding:8px 1.6rem 8px 8px}
   .check-name,.check-amount,.check-debt select{padding-inline:8px}
   .check-amount{max-width:none}
   .check-remove{min-width:32px;padding-inline:6px}
