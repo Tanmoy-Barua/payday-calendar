@@ -49,6 +49,7 @@ function ItemRow({ item, debts, onChange, onRemove }) {
           <label className="field check-category">
             <span className="label">Category</span>
             <select
+              aria-label="Category"
               value={item.category === 'debt' ? 'debt' : 'other'}
               onChange={ev => {
                 const category = ev.target.value === 'debt' ? 'debt' : 'other'
@@ -76,6 +77,7 @@ function ItemRow({ item, debts, onChange, onRemove }) {
           <label className="field check-debt">
             <span className="label">Debt</span>
             <select
+              aria-label="Debt"
               value={item.debtId || ''}
               onChange={ev => {
                 const debtId = ev.target.value
@@ -106,6 +108,7 @@ function ItemRow({ item, debts, onChange, onRemove }) {
           step="0.01"
           inputMode="decimal"
           placeholder="$"
+          aria-label="Amount"
           value={item.amount === '' || item.amount == null ? '' : item.amount}
           onChange={ev => {
             const next = ev.target.value
