@@ -465,7 +465,7 @@ export default function App() {
             <button className="btn ghost" type="button" onClick={lockNow}>Lock now</button>
           </div>
         ) : null}
-        <span className="status" id="status">{status}</span>
+        <span className={`status${/could not|try again|not available|failed/i.test(status) ? ' bad' : ''}`} id="status">{status}</span>
       </header>
       {page === 'calendar' ? (
         <div className="hdr-actions">
