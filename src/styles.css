@@ -10,11 +10,11 @@
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
   --bg:#0f1614; --surface:#17211e; --ink:#e6eeeb; --muted:#93a59f; --line:#2a3833;
   --accent:#3fc29b; --accent-soft:#173a30; --pay:#f0a543; --pay-soft:#3a2a12; --danger:#ef7b70;
-  --j0:#3fc29b; --j1:#7d9ff0; --j2:#e07cc4; --j3:#f0a543; --j4:#a891f0; --j5:#5cc3d4; color-scheme:dark}}
+  --j0:#3fc29b; --j1:#7d9ff0; --j2:#e07cc4; --j3:#f0a543; --j4:#a891f0; --j5:#5cc3d4; --j6:#e8e8e8; color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#0f1614; --surface:#17211e; --ink:#e6eeeb; --muted:#93a59f; --line:#2a3833;
   --accent:#3fc29b; --accent-soft:#173a30; --pay:#f0a543; --pay-soft:#3a2a12; --danger:#ef7b70;
-  --j0:#3fc29b; --j1:#7d9ff0; --j2:#e07cc4; --j3:#f0a543; --j4:#a891f0; --j5:#5cc3d4; color-scheme:dark}
+  --j0:#3fc29b; --j1:#7d9ff0; --j2:#e07cc4; --j3:#f0a543; --j4:#a891f0; --j5:#5cc3d4; --j6:#e8e8e8; color-scheme:dark}
 *{box-sizing:border-box}
 html{overflow-x:clip}
 body{
@@ -109,6 +109,7 @@ form{display:grid;gap:10px}
 .jobrow .meta{font-size:13px;color:var(--muted)}
 .swatches{display:flex;gap:6px;flex-wrap:wrap}
 .swatches label{width:26px;height:26px;border-radius:50%;cursor:pointer;border:2px solid transparent;display:block}
+.swatches label[for="jc6"]{box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--ink) 18%, transparent)}
 .swatches input{position:absolute;opacity:0;pointer-events:none}
 .swatches input:checked+label{border-color:var(--ink)}
 .status{font-size:12px;color:var(--muted)}

@@ -300,10 +300,10 @@ function JobForm({ jobs, editingJob, onCancel, onSave }) {
         <div className="field">
           <span className="label">Color</span>
           <div className="swatches" role="radiogroup" aria-label="Color">
-            {[0, 1, 2, 3, 4, 5].map(i => (
+            {[0, 1, 2, 3, 4, 5, 6].map(i => (
               <span key={i} style={{ display: 'contents' }}>
                 <input type="radio" name="jColor" id={'jc' + i} value={i} checked={Number(color) === i} onChange={() => setColor(i)} />
-                <label htmlFor={'jc' + i} style={{ background: `var(--j${i})` }} title={'Color ' + (i + 1)} />
+                <label htmlFor={'jc' + i} style={{ background: `var(--j${i})` }} title={i === 6 ? 'Black' : ('Color ' + (i + 1))} />
               </span>
             ))}
           </div>
