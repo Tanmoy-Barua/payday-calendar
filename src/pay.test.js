@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { payOnOrAfter, payBefore, periodFor, lagOf, listPastPaychecks } from './pay.js'
-import { totals } from './calc.js'
+import { totals, workDays, workShifts } from './calc.js'
 
 const company = { id: 'company', freq: 'biweeklyThu', anchor: '2026-10-01', weekEnd: 'sun', lag: 0 }
 
@@ -21,6 +21,27 @@ test('saturday week end delays the check by 5 days', () => {
   assert.equal(lagOf(job), 5)
   assert.equal(per.start, '2026-09-27')
   assert.equal(per.end, '2026-10-10')
+})
+
+test('workDays counts unique days with hours, matching totals range scan', () => {
+  const months = {
+    '2026-09': {
+      days: {
+        '2026-09-14': [{ id: 'a', job: 'company', hours: 8, amount: 160 }],
+        // Two shifts same day still count as one day worked.
+        '2026-09-15': [
+          { id: 'b1', job: 'company', hours: 4, amount: 80 },
+          { id: 'b2', job: 'company', hours: 4, amount: 80 },
+        ],
+        // Zero-hour row does not count.
+        '2026-09-16': [{ id: 'c', job: 'company', hours: 0, amount: 0 }],
+        // Other job does not count.
+        '2026-09-17': [{ id: 'd', job: 'other', hours: 8, amount: 100 }],
+      },
+    },
+  }
+  assert.equal(workDays(months, '2026-09-14', '2026-09-17', 'company'), 2)
+  assert.equal(workShifts(months, '2026-09-14', '2026-09-17', 'company'), 3)
 })
 
 test('totals add hours and pay across month files', () => {
@@ -58,4 +79,6 @@ test('listPastPaychecks returns closed checks with hours and pay', () => {
   assert.equal(past[0].amount, 480)
   assert.equal(past[0].start, '2026-09-28')
   assert.equal(past[0].end, '2026-10-11')
+  assert.equal(past[0].days, 3)
+  assert.equal(past[0].periodDays, 14)
 })

@@ -1,5 +1,5 @@
 import { P, add, diff, lastDom, ymd } from './dates.js'
-import { totals, workDays } from './calc.js'
+import { totals, workDays, workShifts } from './calc.js'
 
 export const FREQ = {
   biweeklyThu: 'Every 2 weeks, paid Thursday of 3rd week',
@@ -106,6 +106,8 @@ export function listPastPaychecks(jobs, months, today, { jobId = '', limit = 36 
           hours: sum.h,
           amount: Math.round((sum.a || 0) * 100) / 100,
           days: workDays(months, period.start, period.end, job.id),
+          shifts: workShifts(months, period.start, period.end, job.id),
+          periodDays: diff(period.start, period.end) + 1,
           rate: sum.h > 0 ? Math.round((sum.a / sum.h) * 100) / 100 : 0,
         })
       }

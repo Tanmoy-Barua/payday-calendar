@@ -31,7 +31,10 @@ export default function PastPaychecks({ jobs, months, today, filter }) {
                   <span>{row.jobName}</span>
                 </div>
                 <div className="past-payday">{fmtTodayLine(row.payday)}</div>
-                <div className="note">Work {fmtShort(row.start)} – {fmtShort(row.end)}</div>
+                <div className="note">
+                  Work {fmtShort(row.start)} – {fmtShort(row.end)}
+                  {row.periodDays ? ` · ${row.periodDays}-day period` : ''}
+                </div>
               </div>
               <div className="past-side">
                 <div className="past-amount num" aria-label="Paycheck amount">{money(row.amount)}</div>
@@ -41,7 +44,7 @@ export default function PastPaychecks({ jobs, months, today, filter }) {
                     <span className="v num">{hrs(row.hours)}</span>
                   </div>
                   <div>
-                    <span className="label">Days</span>
+                    <span className="label">Days worked</span>
                     <span className="v num">{row.days}</span>
                   </div>
                   <div>

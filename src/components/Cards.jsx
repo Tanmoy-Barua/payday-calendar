@@ -54,7 +54,7 @@ export default function Cards({ jobs, months, today, onAddSchedule }) {
             <div className="stats">
               <div><span className="label">Hours</span><span className="v">{hrs(sum.h)}</span></div>
               <div><span className="label">Per hour</span><span className="v">{sum.h ? money(sum.a / sum.h) : '—'}</span></div>
-              <div><span className="label">Days</span><span className="v">{workDays(months, per.start, per.end, j.id)}</span></div>
+              <div><span className="label">Days worked</span><span className="v">{workDays(months, per.start, per.end, j.id)}</span></div>
             </div>
             <div className="note">
               {`Covers work ${fmtShort(per.start)} – ${fmtShort(per.end)}`}
