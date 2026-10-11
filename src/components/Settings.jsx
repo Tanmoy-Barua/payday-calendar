@@ -64,7 +64,7 @@ export default function Settings({
         <h3>Import your work schedule</h3>
         <p className="note">
           In Connecteam → Settings → calendar sync, copy the private calendar URL, paste it here, then sync.
-          Shifts become hours on your calendar for the pay schedule you pick. Manual logs are kept.
+          On days that appear in Connecteam, hours for the pay schedule you pick are replaced (so sync does not double your total). Other days stay as you logged them.
         </p>
         <label className="field">
           <span className="label">Connecteam calendar URL</span>

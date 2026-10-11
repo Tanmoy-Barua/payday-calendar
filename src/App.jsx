@@ -114,7 +114,7 @@ export default function App() {
       const data = await fetchCalendarFeed(url)
       const shifts = data.shifts || []
       const job = jobs.find(j => j.id === jobId) || jobs[0]
-      const { months: nextMonths, added } = applyConnecteamShifts(months, shifts, {
+      const { months: nextMonths, added, days } = applyConnecteamShifts(months, shifts, {
         jobId: job.id,
         rate: job.rate,
       })
@@ -130,7 +130,7 @@ export default function App() {
       setStatus('Saved')
       setConnecteamMessage(
         added
-          ? `Imported ${added} shift${added === 1 ? '' : 's'} into ${job.name}. Open Calendar to review.`
+          ? `Updated ${days} day${days === 1 ? '' : 's'} (${added} shift${added === 1 ? '' : 's'}) on ${job.name}. Replaced that job’s hours on those days — open Calendar to review.`
           : 'No shifts found in that calendar feed yet.',
       )
     } catch (err) {

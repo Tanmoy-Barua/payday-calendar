@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { isAllowedCalendarUrl, parseIcsEvents, unfoldIcs } from './ics.js'
-import { applyConnecteamShifts } from './connecteam.js'
+import { applyConnecteamShifts, dedupeShifts } from './connecteam.js'
 
 const SAMPLE = `BEGIN:VCALENDAR
 VERSION:2.0
@@ -44,24 +44,38 @@ test('calendar URL allowlist accepts Connecteam/S3 https feeds only', () => {
   assert.equal(isAllowedCalendarUrl('https://evil.example/x'), false)
 })
 
-test('applyConnecteamShifts replaces prior Connecteam rows and keeps manual logs', () => {
+test('applyConnecteamShifts replaces that job on sync days so hours are not doubled', () => {
   const months = {
     '2026-10': {
       days: {
         '2026-10-10': [
-          { id: 'manual', job: 'company', hours: 2, amount: 40 },
-          { id: 'cteam-old', job: 'company', hours: 4, amount: 80, source: 'connecteam' },
+          { id: 'manual', job: 'company', hours: 8, amount: 147.52 },
+          { id: 'cteam-old', job: 'company', hours: 8, amount: 147.52 },
+          { id: 'other', job: 'weekend', hours: 3, amount: 60 },
+        ],
+        '2026-10-12': [
+          { id: 'keep', job: 'company', hours: 5, amount: 90 },
         ],
       },
     },
   }
   const shifts = parseIcsEvents(SAMPLE)
-  const { months: next, added } = applyConnecteamShifts(months, shifts, { jobId: 'company', rate: 20 })
+  const { months: next, added } = applyConnecteamShifts(months, shifts, { jobId: 'company', rate: 18.44 })
   assert.equal(added, 2)
   const day = next['2026-10'].days['2026-10-10']
-  assert.equal(day.some(e => e.id === 'manual'), true)
-  assert.equal(day.filter(e => String(e.id).startsWith('cteam-')).length, 1)
-  assert.equal(day.find(e => String(e.id).startsWith('cteam-')).hours, 8)
-  assert.equal(day.find(e => String(e.id).startsWith('cteam-')).amount, 160)
+  assert.equal(day.filter(e => e.job === 'company').length, 1)
+  assert.equal(day.find(e => e.job === 'company').hours, 8)
+  assert.equal(day.find(e => e.job === 'weekend').hours, 3)
   assert.equal(next['2026-10'].days['2026-10-11'][0].hours, 8)
+  // Day not in the feed keeps its manual company hours.
+  assert.equal(next['2026-10'].days['2026-10-12'][0].hours, 5)
+})
+
+test('duplicate ICS events for the same shift are collapsed', () => {
+  const shifts = dedupeShifts([
+    { uid: 'a', day: '2026-10-10', hours: 8, start: 'x', end: 'y' },
+    { uid: 'a', day: '2026-10-10', hours: 8, start: 'x', end: 'y' },
+    { uid: 'b', day: '2026-10-10', hours: 8, start: 'x', end: 'y' },
+  ])
+  assert.equal(shifts.length, 1)
 })

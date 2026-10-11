@@ -47,18 +47,42 @@ export function isConnecteamEntry(entry, jobId = '') {
   return String(entry.id || '').startsWith('cteam-')
 }
 
+/** Drop duplicate ICS rows (same uid, or same day/start/end/hours). */
+export function dedupeShifts(shifts) {
+  const seen = new Set()
+  const out = []
+  for (const shift of shifts || []) {
+    if (!shift?.day || !(Number(shift.hours) > 0)) continue
+    const uidKey = String(shift.uid || '').trim()
+    const spanKey = `${shift.day}|${shift.start || ''}|${shift.end || ''}|${shift.hours}`
+    const key = uidKey ? `uid:${uidKey}` : `span:${spanKey}`
+    if (seen.has(key) || seen.has(`span:${spanKey}`)) continue
+    seen.add(key)
+    seen.add(`span:${spanKey}`)
+    out.push(shift)
+  }
+  return out
+}
+
 /**
- * Replace Connecteam-sourced entries for a job with shifts from the ICS feed.
- * Keeps manually logged hours on the same days. Uses cteam- ids so sync survives
- * the DB (which only stores id/job/hours/amount).
+ * Apply Connecteam shifts for a job.
+ * On any day that appears in the feed, replace ALL hours for that job (so sync
+ * does not stack on top of earlier manual logs). Other jobs / other days stay.
  */
 export function applyConnecteamShifts(months, shifts, { jobId, rate } = {}) {
   if (!jobId) throw new Error('Pick a pay schedule to attach Connecteam shifts to.')
+  const unique = dedupeShifts(shifts)
+  const syncDays = new Set(unique.map(shift => shift.day))
+
   const next = {}
   for (const [mk, month] of Object.entries(months || {})) {
     const days = {}
     for (const [day, entries] of Object.entries(month?.days || {})) {
-      days[day] = (entries || []).filter(e => !isConnecteamEntry(e, jobId))
+      days[day] = (entries || []).filter(e => {
+        if (e.job !== jobId) return true
+        if (syncDays.has(day)) return false
+        return !isConnecteamEntry(e, jobId)
+      })
       if (!days[day].length) delete days[day]
     }
     next[mk] = { days }
@@ -66,24 +90,26 @@ export function applyConnecteamShifts(months, shifts, { jobId, rate } = {}) {
 
   let added = 0
   const hourly = Number(rate) || 0
-  for (const shift of shifts || []) {
-    if (!shift?.day || !(Number(shift.hours) > 0)) continue
+  for (const shift of unique) {
     const mk = shift.day.slice(0, 7)
     if (!next[mk]) next[mk] = { days: {} }
     const days = next[mk].days
     const list = [...(days[shift.day] || [])]
-    const id = entryIdFor(shift.uid)
-    const amount = money2((Number(shift.hours) || 0) * hourly)
     list.push({
-      id,
+      id: entryIdFor(shift.uid),
       job: jobId,
       hours: Number(shift.hours),
-      amount,
+      amount: money2((Number(shift.hours) || 0) * hourly),
     })
     days[shift.day] = list
     added += 1
   }
-  return { months: next, added, shifts: (shifts || []).length }
+  return {
+    months: next,
+    added,
+    shifts: unique.length,
+    days: syncDays.size,
+  }
 }
 
 export function shiftsFromIcs(text) {
