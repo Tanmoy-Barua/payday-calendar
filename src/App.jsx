@@ -60,15 +60,16 @@ const NAV_PATHS = {
 
 function NavIcon({ name }) {
   if (name === 'settings') {
+    // Sliders — same line style as checklist/calendar; reads clearly as Settings
     return (
       <svg className="nav-icon" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false">
-        <circle cx="12" cy="12" r="3.1" fill="none" stroke="currentColor" strokeWidth="1.7" />
         <path
           fill="none"
           stroke="currentColor"
           strokeWidth="1.7"
           strokeLinecap="round"
-          d="M12 4.2v2.2M12 17.6v2.2M4.2 12h2.2M17.6 12h2.2M6.5 6.5l1.6 1.6M15.9 15.9l1.6 1.6M6.5 17.5l1.6-1.6M15.9 8.1l1.6-1.6"
+          strokeLinejoin="round"
+          d="M5 7h7M16 4.8v4.4M15 7h4M5 12h3M12 9.8v4.4M11 12h8M5 17h7M16 14.8v4.4M15 17h4"
         />
       </svg>
     )
