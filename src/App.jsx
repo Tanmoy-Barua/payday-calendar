@@ -56,10 +56,23 @@ const NAV_PATHS = {
   spend: 'M4 9.5h16v9A1.5 1.5 0 0 1 18.5 20h-13A1.5 1.5 0 0 1 4 18.5v-9ZM7 6.5h10l1.8 3H5.2L7 6.5ZM12 13v4.2M10.2 15.1h3.6',
   debt: 'M4.5 9h15A1.5 1.5 0 0 1 21 10.5v7A1.5 1.5 0 0 1 19.5 19h-15A1.5 1.5 0 0 1 3 17.5v-7A1.5 1.5 0 0 1 4.5 9Zm0 3.2h15M7 15.5h4',
   checklist: 'M9 7h10M9 12h10M9 17h7M5.2 7l1.3 1.3L8.8 6M5.2 12l1.3 1.3L8.8 11M5.2 17l1.3 1.3L8.8 16',
-  settings: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM19.4 15a7.7 7.7 0 0 0 .1-1 7.7 7.7 0 0 0-.1-1l1.7-1.3-1.5-2.6-2 .8a7 7 0 0 0-1.7-1l-.3-2.1H9.4l-.3 2.1a7 7 0 0 0-1.7 1l-2-.8L3.9 10.7 5.6 12a7.7 7.7 0 0 0-.1 1 7.7 7.7 0 0 0 .1 1l-1.7 1.3 1.5 2.6 2-.8a7 7 0 0 0 1.7 1l.3 2.1h3.2l.3-2.1a7 7 0 0 0 1.7-1l2 .8 1.5-2.6L19.4 15Z',
 }
 
 function NavIcon({ name }) {
+  if (name === 'settings') {
+    return (
+      <svg className="nav-icon" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false">
+        <circle cx="12" cy="12" r="3.1" fill="none" stroke="currentColor" strokeWidth="1.7" />
+        <path
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.7"
+          strokeLinecap="round"
+          d="M12 4.2v2.2M12 17.6v2.2M4.2 12h2.2M17.6 12h2.2M6.5 6.5l1.6 1.6M15.9 15.9l1.6 1.6M6.5 17.5l1.6-1.6M15.9 8.1l1.6-1.6"
+        />
+      </svg>
+    )
+  }
   const d = NAV_PATHS[name]
   if (!d) return null
   return (
