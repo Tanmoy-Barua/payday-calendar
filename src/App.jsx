@@ -60,13 +60,19 @@ const NAV_PATHS = {
 
 function NavIcon({ name }) {
   if (name === 'settings') {
-    // Sliders — same stroke weight as the other nav icons
+    // Sliders — line gaps leave the knobs clean (same stroke weight as other icons)
     return (
       <svg className="nav-icon" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false">
-        <path fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" d="M4.5 7h15M4.5 12h15M4.5 17h15" />
-        <circle cx="14.5" cy="7" r="2.15" fill="none" stroke="currentColor" strokeWidth="1.7" />
-        <circle cx="9" cy="12" r="2.15" fill="none" stroke="currentColor" strokeWidth="1.7" />
-        <circle cx="15" cy="17" r="2.15" fill="none" stroke="currentColor" strokeWidth="1.7" />
+        <path
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.7"
+          strokeLinecap="round"
+          d="M4.5 7h7.3M16.7 7H19.5M4.5 12h2.2M11.3 12H19.5M4.5 17h8M17.3 17H19.5"
+        />
+        <circle cx="14.2" cy="7" r="2.2" fill="none" stroke="currentColor" strokeWidth="1.7" />
+        <circle cx="9" cy="12" r="2.2" fill="none" stroke="currentColor" strokeWidth="1.7" />
+        <circle cx="14.8" cy="17" r="2.2" fill="none" stroke="currentColor" strokeWidth="1.7" />
       </svg>
     )
   }
