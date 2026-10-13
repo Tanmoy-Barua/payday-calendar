@@ -1,4 +1,4 @@
-import { add, lastDom, ymd } from './dates.js'
+import { add, lastDom, P, ymd } from './dates.js'
 
 export const entriesOn = (months, s) => months[s.slice(0, 7)]?.days?.[s] || []
 
@@ -72,6 +72,39 @@ export function dailySeries(months, from, to, jobId) {
     series.push({ date: day, amount, hours, parts })
   }
   return series
+}
+
+/** Sunday–Saturday buckets clipped to `[from, to]`. */
+export function weekBuckets(from, to) {
+  if (!from || !to || from > to) return []
+  const weeks = []
+  for (let cursor = from; cursor <= to;) {
+    const remaining = 6 - P(cursor).getUTCDay()
+    const weekEnd = add(cursor, remaining)
+    const end = weekEnd > to ? to : weekEnd
+    weeks.push({ start: cursor, end })
+    cursor = add(end, 1)
+  }
+  return weeks
+}
+
+/** Daily pay rolled into calendar weeks, still split by job in `parts`. */
+export function weeklySeries(months, from, to, jobId) {
+  const days = dailySeries(months, from, to, jobId)
+  return weekBuckets(from, to).map(week => {
+    let amount = 0
+    let hours = 0
+    const parts = {}
+    for (const point of days) {
+      if (point.date < week.start || point.date > week.end) continue
+      amount += point.amount
+      hours += point.hours
+      for (const [id, pay] of Object.entries(point.parts)) {
+        parts[id] = (parts[id] || 0) + pay
+      }
+    }
+    return { start: week.start, end: week.end, amount, hours, parts }
+  })
 }
 
 /** Unique calendar days in range with hours logged for the job. */
