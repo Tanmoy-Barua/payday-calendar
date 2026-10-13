@@ -1,4 +1,4 @@
-import { lastDom, ymd } from './dates.js'
+import { add, lastDom, ymd } from './dates.js'
 
 export const entriesOn = (months, s) => months[s.slice(0, 7)]?.days?.[s] || []
 
@@ -50,6 +50,28 @@ export function totals(months, from, to, jobId) {
     }
   }
   return { h, a }
+}
+
+/** One point per calendar day from `from` through `to` (inclusive). */
+export function dailySeries(months, from, to, jobId) {
+  if (!from || !to || from > to) return []
+  const series = []
+  for (let day = from; day <= to; day = add(day, 1)) {
+    const entries = entriesOn(months, day).filter(e => !jobId || e.job === jobId)
+    let amount = 0
+    let hours = 0
+    const parts = {}
+    for (const e of entries) {
+      const pay = Number(e.amount) || 0
+      const hrs = Number(e.hours) || 0
+      amount += pay
+      hours += hrs
+      const id = e.job || '_'
+      parts[id] = (parts[id] || 0) + pay
+    }
+    series.push({ date: day, amount, hours, parts })
+  }
+  return series
 }
 
 /** Unique calendar days in range with hours logged for the job. */

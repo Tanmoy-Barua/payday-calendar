@@ -561,7 +561,14 @@ export default function App() {
       {ready && page === 'calendar' ? (
         <>
           <Cards jobs={jobs} months={months} today={today} onAddSchedule={openJobForm} />
-          <EarningsSummary months={months} view={view} today={today} filter={filter} jobs={jobs} />
+          <EarningsSummary
+            months={months}
+            view={view}
+            today={today}
+            filter={filter}
+            jobs={jobs}
+            onSelectDay={selectDay}
+          />
           <div className="main">
             <Calendar
               jobs={jobs}
