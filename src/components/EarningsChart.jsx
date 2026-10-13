@@ -53,6 +53,7 @@ export default function EarningsChart({ months, view, today, filter, jobs, onSel
             ? `Bar chart of daily pay from ${fmtShort(start)} to ${fmtShort(end)}. Peak ${money(peak)}.`
             : `Empty bar chart for ${fmtShort(start)} to ${fmtShort(end)}.`
         }
+        onMouseLeave={() => setActive(null)}
       >
         <div className="earn-chart-grid" aria-hidden="true">
           <span />
@@ -83,7 +84,6 @@ export default function EarningsChart({ months, view, today, filter, jobs, onSel
                 aria-label={`${fmtShort(point.date)}, ${money(point.amount)}`}
                 onMouseEnter={() => setActive(point)}
                 onFocus={() => setActive(point)}
-                onMouseLeave={() => setActive(null)}
                 onBlur={() => setActive(null)}
                 onClick={() => onSelectDay?.(point.date)}
               >
