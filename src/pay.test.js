@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { payOnOrAfter, payBefore, periodFor, lagOf, listPastPaychecks, cardTotalRange, normalizeCardTotal } from './pay.js'
-import { totals, workDays, workShifts, monthRange, halfMonthRanges, dailySeries, weekBuckets, weeklySeries } from './calc.js'
+import { totals, workDays, workShifts, monthRange, halfMonthRanges } from './calc.js'
 
 const company = { id: 'company', freq: 'biweeklyThu', anchor: '2026-10-01', weekEnd: 'sun', lag: 0 }
 
@@ -34,51 +34,6 @@ test('cardTotalRange can use this month or last N days for the top total', () =>
   assert.equal(fifteen.start, '2026-09-27')
   assert.equal(fifteen.end, '2026-10-11')
   assert.equal(normalizeCardTotal('nope'), 'paycheck')
-})
-
-test('dailySeries fills every day and splits pay by job', () => {
-  const months = {
-    '2026-10': {
-      days: {
-        '2026-10-01': [
-          { id: 'a', job: 'aps', hours: 8, amount: 100 },
-          { id: 'b', job: 'flex', hours: 2, amount: 40 },
-        ],
-        '2026-10-03': [{ id: 'c', job: 'aps', hours: 4, amount: 50 }],
-      },
-    },
-  }
-  const all = dailySeries(months, '2026-10-01', '2026-10-03', '')
-  assert.equal(all.length, 3)
-  assert.equal(all[0].amount, 140)
-  assert.deepEqual(all[0].parts, { aps: 100, flex: 40 })
-  assert.equal(all[1].amount, 0)
-  assert.equal(all[2].amount, 50)
-  const onlyAps = dailySeries(months, '2026-10-01', '2026-10-03', 'aps')
-  assert.equal(onlyAps[0].amount, 100)
-  assert.deepEqual(onlyAps[0].parts, { aps: 100 })
-})
-
-test('weeklySeries rolls days into Sunday–Saturday stacks', () => {
-  const months = {
-    '2026-10': {
-      days: {
-        '2026-10-01': [{ id: 'a', job: 'aps', hours: 8, amount: 100 }],
-        '2026-10-04': [{ id: 'b', job: 'flex', hours: 3, amount: 60 }],
-        '2026-10-06': [{ id: 'c', job: 'aps', hours: 8, amount: 120 }],
-      },
-    },
-  }
-  assert.deepEqual(weekBuckets('2026-10-01', '2026-10-07'), [
-    { start: '2026-10-01', end: '2026-10-03' },
-    { start: '2026-10-04', end: '2026-10-07' },
-  ])
-  const weeks = weeklySeries(months, '2026-10-01', '2026-10-07', '')
-  assert.equal(weeks.length, 2)
-  assert.equal(weeks[0].amount, 100)
-  assert.deepEqual(weeks[0].parts, { aps: 100 })
-  assert.equal(weeks[1].amount, 180)
-  assert.deepEqual(weeks[1].parts, { flex: 60, aps: 120 })
 })
 
 test('daily pay treats each day as its own paycheck', () => {

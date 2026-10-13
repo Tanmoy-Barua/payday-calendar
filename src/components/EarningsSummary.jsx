@@ -1,6 +1,5 @@
 import { fmtMonth, fmtShort, hrs, money } from '../dates.js'
 import { halfMonthRanges, monthRange, totals, workDays } from '../calc.js'
-import EarningsChart from './EarningsChart.jsx'
 
 function EarnCard({ label, rangeNote, sum, days, highlight }) {
   return (
@@ -17,7 +16,7 @@ function EarnCard({ label, rangeNote, sum, days, highlight }) {
   )
 }
 
-export default function EarningsSummary({ months, view, today, filter, jobs, onSelectDay }) {
+export default function EarningsSummary({ months, view, today, filter, jobs }) {
   const ym = view || today.slice(0, 7)
   const [y, m] = ym.split('-').map(Number)
   const month = monthRange(ym)
@@ -61,14 +60,6 @@ export default function EarningsSummary({ months, view, today, filter, jobs, onS
           />
         ) : null}
       </div>
-      <EarningsChart
-        months={months}
-        view={view}
-        today={today}
-        filter={filter}
-        jobs={jobs}
-        onSelectDay={onSelectDay}
-      />
     </section>
   )
 }

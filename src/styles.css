@@ -70,51 +70,6 @@ button,select,input{font:inherit;color:inherit;max-width:100%}
 .earn-card.is-current{border-color:var(--accent);background:color-mix(in srgb, var(--accent) 8%, var(--bg))}
 .earn-amount{font-family:var(--display);font-weight:800;font-size:clamp(22px,4vw,28px);letter-spacing:-.02em;line-height:1.05}
 .earn-meta{display:flex;flex-wrap:wrap;gap:6px;font-family:var(--mono);font-size:13px;font-weight:600;color:var(--muted)}
-.earn-chart{padding-top:2px;border-top:1px solid var(--line)}
-.earn-chart-card{
-  display:grid;gap:12px;padding:16px 16px 14px;border:1px solid var(--line);border-radius:18px;
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--surface) 92%, transparent), var(--surface)),
-    var(--surface);
-  box-shadow:0 10px 28px rgb(20 33 29 / .05);
-}
-.earn-chart-head{display:flex;flex-wrap:wrap;gap:10px 16px;justify-content:space-between;align-items:flex-start}
-.earn-chart-title{display:flex;gap:10px;align-items:flex-start;min-width:0}
-.earn-chart-title h3{
-  margin:0;font-family:var(--display);font-weight:700;font-size:clamp(16px,2.6vw,18px);
-  letter-spacing:-.02em;line-height:1.25;
-}
-.earn-chart-title .note{margin:4px 0 0}
-.earn-chart-mark{
-  flex:none;display:grid;place-items:center;width:34px;height:34px;border-radius:12px;
-  color:var(--accent);background:color-mix(in srgb, var(--accent-soft) 80%, var(--surface));
-}
-.earn-chart-unit{font-weight:600}
-.earn-chart-legend{
-  display:flex;flex-wrap:wrap;gap:8px 14px;list-style:none;margin:0;padding:0;color:var(--muted);
-  font-size:13px;font-weight:600;
-}
-.earn-chart-legend li{display:inline-flex;align-items:center;gap:7px;min-width:0}
-.earn-swatch{width:12px;height:12px;border-radius:4px;flex:none;box-shadow:inset 0 0 0 1px rgb(0 0 0 / .06)}
-.earn-chart-plot{min-width:0;margin:0 -4px}
-.earn-flow-svg{display:block;width:100%;height:auto;overflow:visible}
-.earn-flow{pointer-events:none}
-.earn-col-top{fill:var(--muted);font-size:12px;font-weight:600;font-family:var(--body)}
-.earn-col-total{fill:var(--muted);font-size:13px;font-weight:700;font-family:var(--mono)}
-.earn-col-empty{fill:color-mix(in srgb, var(--line) 85%, transparent)}
-.earn-col-seg{transition:filter .18s ease, transform .18s ease;transform-box:fill-box;transform-origin:center bottom}
-.earn-col.is-focus .earn-col-seg,
-.earn-col:hover .earn-col-seg,
-.earn-col:focus-visible .earn-col-seg{filter:brightness(1.05)}
-.earn-col:focus-visible{outline:none}
-.earn-col:focus-visible .earn-col-seg{stroke:var(--ink);stroke-width:1.5}
-.earn-col-pill{fill:var(--ink)}
-.earn-col-pill-text{fill:var(--surface);font-size:12px;font-weight:700;font-family:var(--mono)}
-.earn-chart-focus-row{
-  display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;align-items:baseline;
-  padding-top:2px;border-top:1px solid color-mix(in srgb, var(--line) 80%, transparent);
-}
-.earn-chart-focus-row .num{font-family:var(--display);font-weight:800;font-size:18px;letter-spacing:-.02em}
 
 /* main grid */
 .main{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:18px;align-items:start}
@@ -380,9 +335,6 @@ select{text-overflow:ellipsis}
   .paycheck-actions{display:grid;grid-template-columns:1fr;gap:8px}
   .paycheck-actions .btn{width:100%}
   .earn-grid{grid-template-columns:1fr;gap:8px}
-  .earn-chart-card{padding:14px}
-  .earn-chart-head{flex-direction:column}
-  .earn-chart-legend{gap:8px 12px;font-size:12px}
   .past-row{grid-template-columns:1fr;gap:12px}
   .past-side{justify-items:start;text-align:left}
   .past-meta{width:100%;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px 12px}
