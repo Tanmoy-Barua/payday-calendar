@@ -485,6 +485,14 @@ export default function App() {
           <h1>Payday Calendar</h1>
           <p className="sub" id="todayLine">Today is {fmtTodayLine(today)}</p>
         </div>
+        {page === 'calendar' ? (
+          <div className="hdr-actions">
+            <div className="hdr-actions-bar">
+              <button className="btn" type="button" onClick={() => { setMode(jobs.length ? 'jobs' : 'jobform'); setEditingJob(null) }}>Pay schedules</button>
+              <button className="btn primary" type="button" onClick={() => { setView(today.slice(0, 7)); setSelected(today); setMode('day'); bumpFocus() }}>+ Log today</button>
+            </div>
+          </div>
+        ) : null}
         <div className="site-nav">
           <nav className="pager" aria-label="Pages">
             <a href="#calendar" aria-label="Calendar" aria-current={page === 'calendar' ? 'page' : undefined}>
@@ -511,14 +519,6 @@ export default function App() {
         </div>
         <span className={`status${/could not|try again|not available|failed/i.test(status) ? ' bad' : ''}`} id="status">{status}</span>
       </header>
-      {page === 'calendar' ? (
-        <div className="hdr-actions">
-          <div className="hdr-actions-bar">
-            <button className="btn" type="button" onClick={() => { setMode(jobs.length ? 'jobs' : 'jobform'); setEditingJob(null) }}>Pay schedules</button>
-            <button className="btn primary" type="button" onClick={() => { setView(today.slice(0, 7)); setSelected(today); setMode('day'); bumpFocus() }}>+ Log today</button>
-          </div>
-        </div>
-      ) : null}
       {ready && page === 'spend' ? <Spend jobs={jobs} months={months} today={today} /> : null}
       {ready && page === 'debt' ? <Debt debts={debts} onSave={persistDebts} /> : null}
       {ready && page === 'checklist' ? (

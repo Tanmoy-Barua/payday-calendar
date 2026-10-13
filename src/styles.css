@@ -26,13 +26,11 @@ body{
   background-attachment:fixed;
 }
 .wrap{max-width:1120px;width:100%;margin:0 auto;padding-inline:max(16px, env(safe-area-inset-left, 0px)) max(16px, env(safe-area-inset-right, 0px));padding-block:20px 48px;display:grid;gap:18px;min-width:0}
-.wrap.page-calendar{grid-template-columns:minmax(0,1fr) auto;align-items:start}
-.wrap.page-calendar > header{grid-column:1;grid-row:1}
-.wrap.page-calendar > .hdr-actions{grid-column:2;grid-row:1;align-self:start;justify-self:end}
-.wrap.page-calendar > :not(header):not(.hdr-actions){grid-column:1 / -1}
-header{display:grid;gap:10px;min-width:0}
-.brand{min-width:0}
-.site-nav{min-width:0}
+header{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px 16px;align-items:start;min-width:0}
+.brand{grid-column:1;min-width:0}
+.hdr-actions{grid-column:2;align-self:start;justify-self:end;min-width:0}
+.site-nav{grid-column:1 / -1;min-width:0}
+header > .status{grid-column:1 / -1}
 h1{font-family:var(--display);font-weight:800;font-size:clamp(26px,5vw,36px);margin:0;letter-spacing:-.02em;text-wrap:balance;overflow-wrap:anywhere}
 h2{font-family:var(--display);font-weight:600;font-size:18px;margin:0;overflow-wrap:anywhere}
 h3{font-family:var(--display);font-weight:600;font-size:17px;margin:0}
@@ -253,7 +251,6 @@ form{display:grid;gap:10px}
 [hidden]{display:none !important}
 
 /* ---------- responsive (must stay last so media queries win) ---------- */
-.hdr-actions{min-width:0}
 .hdr-actions-bar{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
 .caltools{display:flex;gap:8px;align-items:center;min-width:0;flex-wrap:wrap}
 .caltools select{border:1px solid var(--line);border-radius:8px;padding:7px 10px;background:var(--bg);max-width:100%;min-width:0}
@@ -291,20 +288,13 @@ select{text-overflow:ellipsis}
   .main{grid-template-columns:1fr}
   .cards{grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr))}
   .paycheck-actions .btn{flex:1 1 180px}
-  .wrap.page-calendar{grid-template-columns:1fr}
-  .wrap.page-calendar > header,
-  .wrap.page-calendar > .hdr-actions,
-  .wrap.page-calendar > :not(header):not(.hdr-actions){grid-column:1}
   .hdr-actions-bar{justify-content:stretch}
   .hdr-actions-bar .btn{flex:1}
 }
 @media (max-width:640px){
   body{font-size:15px}
   .wrap{padding-block:14px 28px;gap:14px;grid-template-columns:1fr}
-  .wrap.page-calendar{padding-block:14px calc(96px + env(safe-area-inset-bottom, 0px));grid-template-columns:1fr}
-  .wrap.page-calendar > header,
-  .wrap.page-calendar > .hdr-actions,
-  .wrap.page-calendar > :not(header):not(.hdr-actions){grid-column:1}
+  .wrap.page-calendar{padding-block:14px calc(96px + env(safe-area-inset-bottom, 0px))}
   .site-nav{
     position:sticky;top:0;z-index:20;margin-inline:calc(-1 * max(16px, env(safe-area-inset-left, 0px)));
     padding:8px max(16px, env(safe-area-inset-left, 0px)) max(8px, env(safe-area-inset-right, 0px));
