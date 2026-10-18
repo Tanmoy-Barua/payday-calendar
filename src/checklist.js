@@ -75,7 +75,8 @@ export function remainingAfterPaid(starting, items) {
   const start = money2(Math.max(0, Number(starting) || 0))
   let left = start
   for (const item of items || []) {
-    if (item.separate || !item.paid) continue
+    // Main payments and card/side notes both reduce remaining once marked paid.
+    if (!item.paid) continue
     const amount = itemAmount(item)
     if (amount == null) continue
     left = money2(left - amount)
@@ -83,11 +84,15 @@ export function remainingAfterPaid(starting, items) {
   return left
 }
 
+/**
+ * Plan leftover after every main payment, then minus any card/side bills
+ * already marked paid (so checking those rows updates this number).
+ */
 export function plannedRemaining(starting, items) {
   const start = money2(Math.max(0, Number(starting) || 0))
   let left = start
   for (const item of items || []) {
-    if (item.separate) continue
+    if (item.separate && !item.paid) continue
     const amount = itemAmount(item)
     if (amount == null) continue
     left = money2(left - amount)

@@ -219,6 +219,7 @@ export default function Checklist({
   const planned = plannedRemaining(starting, note.items)
   const { steps } = runningSteps(starting, note.items)
   const paidCount = mainItems.filter(item => item.paid).length
+  const sidePaidCount = otherItems.filter(item => item.paid).length
   const history = note.history || []
 
   function commitItems(nextItems) {
@@ -337,12 +338,15 @@ export default function Checklist({
           <div>
             <div className="label">Remaining now</div>
             <div className="checklist-remain num">{money(left)}</div>
-            <p className="note">{paidCount} of {mainItems.length} main payments marked paid</p>
+            <p className="note">
+              {paidCount} of {mainItems.length} main marked paid
+              {sidePaidCount ? ` · ${sidePaidCount} card/side paid` : ''}
+            </p>
           </div>
           <div>
             <div className="label">If all main payments paid</div>
             <div className="num">{money(planned)}</div>
-            <p className="note">Plan leftover after every main payment</p>
+            <p className="note">Main plan leftover, minus card bills marked paid</p>
           </div>
         </div>
       </section>
@@ -385,7 +389,7 @@ export default function Checklist({
               </li>
             ))}
           </ol>
-          <p className="note">Checked items count toward “Remaining now”. Unchecked items stay in the plan only.</p>
+          <p className="note">Checked main and card items count toward “Remaining now”. Unchecked main items stay in the plan leftover.</p>
         </section>
       </div>
 
@@ -393,7 +397,7 @@ export default function Checklist({
         <div className="label">Also track</div>
         <h3>Cards and side notes</h3>
         <p className="note">
-          Prime, Credit One, Capital One, Apple Card, Chevron Card, and the circled $45 / $40 stay here. They do not change the paycheck math above.
+          Prime, Credit One, Capital One, Apple Card, Chevron Card, and similar notes stay here. Mark paid to subtract them from Remaining now and from the leftover above.
         </p>
         <div className="check-list">
           {otherItems.map(item => (

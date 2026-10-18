@@ -5,6 +5,7 @@ import {
   applyPaycheckSource,
   closePaycheckBudget,
   defaultBudgetNote,
+  money2,
   plannedRemaining,
   remainingAfterPaid,
   runningSteps,
@@ -29,13 +30,14 @@ test('remaining drops only for paid main checklist items', () => {
   assert.equal(remainingAfterPaid(note.starting, note.items), 74)
 })
 
-test('separate notepad items do not change the main remaining math', () => {
+test('paid card and side notes reduce remaining and the all-mains leftover', () => {
   const note = defaultBudgetNote()
+  // Default side amounts: Prime 50, circled 45, circled 40 → 135 when paid.
   for (const item of note.items) {
     if (item.separate) item.paid = true
   }
-  assert.equal(remainingAfterPaid(note.starting, note.items), 2200)
-  assert.equal(plannedRemaining(note.starting, note.items), 74)
+  assert.equal(remainingAfterPaid(note.starting, note.items), 2065)
+  assert.equal(plannedRemaining(note.starting, note.items), money2(74 - 135))
 })
 
 test('running steps match the corrected notepad chain', () => {
