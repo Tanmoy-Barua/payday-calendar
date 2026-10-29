@@ -173,9 +173,14 @@ form{display:grid;gap:10px}
 .debt-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px}
 .debt-form{display:grid;gap:10px}
 .debt-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
-.debt-pay{display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:4px 10px}
-.debt-pay .note{grid-column:1 / span 2}
-.debt-pay .debt-row-actions{grid-column:3;grid-row:1 / span 2;align-self:center;display:flex;flex-wrap:wrap;gap:4px;justify-content:flex-end}
+.debt-pay{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:4px 12px}
+.debt-pay .jobname{grid-column:1;grid-row:1}
+.debt-pay .note{grid-column:1;grid-row:2}
+.debt-pay .debt-row-actions{
+  grid-column:2;grid-row:1 / span 2;align-self:center;
+  display:flex;flex-wrap:nowrap;align-items:center;gap:6px;justify-content:flex-end;white-space:nowrap;
+}
+.debt-pay .debt-row-actions .num{font-weight:600}
 .debt-row-actions{display:flex;flex-wrap:wrap;gap:4px}
 .debt-actions{display:flex;flex-wrap:wrap;gap:8px}
 .debt-edit{padding:10px 0;border-bottom:1px solid var(--line)}
@@ -353,9 +358,12 @@ select{text-overflow:ellipsis}
   .settings-choice input{margin:0}
   .settings-choice strong{font-size:13px}
   .settings-choice .note{display:none}
-  .debt-pay{grid-template-columns:1fr auto;gap:4px 10px}
-  .debt-pay .note{grid-column:1 / -1}
-  .debt-pay .debt-row-actions{grid-column:1 / -1;grid-row:auto;justify-content:flex-start}
+  .debt-pay{grid-template-columns:minmax(0,1fr) auto;gap:4px 8px}
+  .debt-pay .note{grid-column:1;grid-row:2}
+  .debt-pay .debt-row-actions{
+    grid-column:2;grid-row:1 / span 2;flex-wrap:nowrap;justify-content:flex-end;
+  }
+  .debt-pay .debt-row-actions .btn{min-height:36px;padding:6px 8px}
   .debt-stats{grid-template-columns:repeat(2,minmax(0,1fr))}
   .debt-fields{grid-template-columns:1fr}
   .history-toggle{flex-wrap:wrap;align-items:flex-start}

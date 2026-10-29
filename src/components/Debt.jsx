@@ -272,9 +272,9 @@ function PaymentRow({ debtId, pay, onSave, onRemove }) {
   return (
     <div className="share debt-pay">
       <span className="jobname">{fmtShort(pay.day)}</span>
-      <span className="num">{money(pay.amount)}</span>
       <span className="note">{pay.note || 'Payment'}</span>
       <div className="debt-row-actions">
+        <span className="num">{money(pay.amount)}</span>
         <button className="btn ghost" type="button" onClick={startEdit}>Edit</button>
         <button className="btn ghost danger" type="button" onClick={() => onRemove(debtId, pay.id)}>Remove</button>
       </div>
