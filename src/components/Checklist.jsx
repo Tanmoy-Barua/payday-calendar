@@ -4,6 +4,7 @@ import {
   ITEM_CATEGORIES,
   applyPaycheckSource,
   closePaycheckBudget,
+  deleteHistoryEntry,
   defaultBudgetNote,
   newItemId,
   nextPaycheckAfter,
@@ -131,25 +132,34 @@ function ItemRow({ item, debts, onChange, onRemove }) {
   )
 }
 
-function HistoryCard({ entry }) {
+function HistoryCard({ entry, onDelete }) {
   const [open, setOpen] = useState(false)
   const paid = (entry.paid || []).filter(row => !row.separate)
   const side = (entry.paid || []).filter(row => row.separate)
   return (
     <article className="history-card">
-      <button className="history-toggle" type="button" onClick={() => setOpen(value => !value)} aria-expanded={open}>
-        <div>
-          <div className="jobname">{entry.paycheckLabel || 'Paycheck'}</div>
-          <p className="note">
-            Closed {fmtShort(entry.closedAt)}
-            {entry.paycheckDate ? ` · payday ${fmtShort(entry.paycheckDate)}` : ''}
-          </p>
-        </div>
-        <div className="history-totals">
-          <span className="num">{money(entry.starting)}</span>
-          <span className="note">left {money(entry.remaining)}</span>
-        </div>
-      </button>
+      <div className="history-head">
+        <button className="history-toggle" type="button" onClick={() => setOpen(value => !value)} aria-expanded={open}>
+          <div>
+            <div className="jobname">{entry.paycheckLabel || 'Paycheck'}</div>
+            <p className="note">
+              Closed {fmtShort(entry.closedAt)}
+              {entry.paycheckDate ? ` · payday ${fmtShort(entry.paycheckDate)}` : ''}
+            </p>
+          </div>
+          <div className="history-totals">
+            <span className="num">{money(entry.starting)}</span>
+            <span className="note">left {money(entry.remaining)}</span>
+          </div>
+        </button>
+        <button
+          className="btn ghost danger history-delete"
+          type="button"
+          onClick={() => onDelete(entry)}
+        >
+          Delete
+        </button>
+      </div>
       {open ? (
         <div className="history-body">
           <p className="note">Where this paycheck went</p>
@@ -214,6 +224,7 @@ export default function Checklist({
   const paidCount = mainItems.filter(item => item.paid).length
   const sidePaidCount = otherItems.filter(item => item.paid).length
   const history = note.history || []
+  const canClose = note.items.length > 0
 
   function commitItems(nextItems) {
     const synced = syncDebtsWithChecklist(debts, note.items, nextItems, { today })
@@ -262,11 +273,21 @@ export default function Checklist({
   }
 
   function confirmCloseNow() {
+    if (!note.items.length) {
+      setConfirmClose(false)
+      return
+    }
     const linkedNote = selected ? applyPaycheckSource(note, selected) : { ...note, starting }
     const nextPay = nextPaycheckAfter(jobs, months, linkedNote.paycheckDate || selected?.payday)
     const { budget: closed } = closePaycheckBudget(linkedNote, { nextPaycheck: nextPay })
     setConfirmClose(false)
     update(closed)
+  }
+
+  function removeHistory(entry) {
+    const label = entry.paycheckLabel || 'this paycheck'
+    if (!window.confirm(`Delete ${label} from paycheck history? This cannot be undone.`)) return
+    update(deleteHistoryEntry(note, entry.id))
   }
 
   return (
@@ -293,12 +314,16 @@ export default function Checklist({
               </p>
             ) : null}
           </div>
-          <div className="paycheck-actions">
-            <button className="btn primary" type="button" onClick={closeCurrent}>
-              Close paycheck & save history
-            </button>
-          </div>
-          {confirmClose ? (
+          {canClose ? (
+            <div className="paycheck-actions">
+              <button className="btn primary" type="button" onClick={closeCurrent}>
+                Close paycheck & save history
+              </button>
+            </div>
+          ) : (
+            <p className="note">This paycheck is closed. Add payments below when you start the next one.</p>
+          )}
+          {canClose && confirmClose ? (
             <div className="paycheck-confirm" role="dialog" aria-labelledby="close-paycheck-title">
               <p id="close-paycheck-title" className="paycheck-confirm-title">Close this paycheck now?</p>
               <p className="note">
@@ -416,7 +441,9 @@ export default function Checklist({
         </p>
         {history.length ? (
           <div className="history-list-wrap">
-            {history.map(entry => <HistoryCard key={entry.id} entry={entry} />)}
+            {history.map(entry => (
+              <HistoryCard key={entry.id} entry={entry} onDelete={removeHistory} />
+            ))}
           </div>
         ) : (
           <p className="note">No closed paychecks yet. Use “Close paycheck & save history” when this notepad is done.</p>

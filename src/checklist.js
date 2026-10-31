@@ -301,6 +301,14 @@ export function closePaycheckBudget(budget, { closedAt = localToday(), nextPaych
   return { budget: next, entry }
 }
 
+export function deleteHistoryEntry(budget, entryId) {
+  const history = Array.isArray(budget?.history) ? budget.history : []
+  return {
+    ...budget,
+    history: history.filter(entry => entry.id !== entryId),
+  }
+}
+
 export function nextPaycheckAfter(jobs, months, payday) {
   if (!jobs?.length) return null
   return allCompaniesTwoWeeks(jobs, months, payday ? add(payday, 1) : localToday())

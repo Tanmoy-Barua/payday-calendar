@@ -4,6 +4,7 @@ import {
   ALL_COMPANIES_ID,
   applyPaycheckSource,
   closePaycheckBudget,
+  deleteHistoryEntry,
   defaultBudgetNote,
   money2,
   plannedRemaining,
@@ -156,6 +157,20 @@ test('closing a paycheck keeps history and clears the checklist', () => {
   assert.equal(budget.items.length, 0)
   assert.equal(budget.starting, 400)
   assert.equal(budget.paycheckDate, '2026-10-29')
+})
+
+test('deleting a history entry leaves the rest of the notepad', () => {
+  const note = {
+    ...defaultBudgetNote(),
+    items: [],
+    history: [
+      { id: 'hist-keep', paycheckLabel: 'Keep', starting: 100, remaining: 10 },
+      { id: 'hist-gone', paycheckLabel: 'Gone', starting: 200, remaining: 20 },
+    ],
+  }
+  const next = deleteHistoryEntry(note, 'hist-gone')
+  assert.deepEqual(next.history.map(row => row.id), ['hist-keep'])
+  assert.equal(next.items.length, 0)
 })
 
 test('marking a debt checklist item paid adds that amount to the debt', () => {
