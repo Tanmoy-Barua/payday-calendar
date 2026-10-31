@@ -295,7 +295,7 @@ export function closePaycheckBudget(budget, { closedAt = localToday(), nextPaych
   let next = {
     ...budget,
     items: [],
-    history: [entry, ...(budget?.history || [])],
+    history: [entry, ...(Array.isArray(budget?.history) ? budget.history : [])],
   }
   if (nextPaycheck) next = applyPaycheckSource(next, nextPaycheck)
   return { budget: next, entry }

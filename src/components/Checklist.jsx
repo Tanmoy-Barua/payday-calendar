@@ -196,10 +196,13 @@ export default function Checklist({
   months = {},
   today = localToday(),
 }) {
-  const note = budget?.items ? {
-    ...budget,
-    items: budget.items.map(normalizeBudgetItem),
-  } : defaultBudgetNote()
+  const note = Array.isArray(budget?.items)
+    ? {
+      ...budget,
+      items: budget.items.map(normalizeBudgetItem),
+      history: Array.isArray(budget.history) ? budget.history : [],
+    }
+    : defaultBudgetNote()
   const selected = jobs.length ? allCompaniesTwoWeeks(jobs, months, today) : null
   const starting = selected ? selected.amount : 0
   const [confirmClose, setConfirmClose] = useState(false)
@@ -242,7 +245,11 @@ export default function Checklist({
       && Number(note.starting) === Number(selected.amount)
       && note.paycheckLabel === selected.label
     if (linked) return
-    update(applyPaycheckSource(note, selected))
+    update({
+      ...applyPaycheckSource(note, selected),
+      items: note.items,
+      history: note.history || [],
+    })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected?.jobId, selected?.payday, selected?.amount, selected?.label])
 

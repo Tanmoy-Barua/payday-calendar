@@ -290,7 +290,13 @@ export function getBudget(db) {
   ensureBudgetTables(db)
   const note = db.prepare('SELECT * FROM budget_notes WHERE id = 1').get()
   const count = db.prepare('SELECT COUNT(*) AS n FROM budget_items').get()
-  if (!note || !count?.n) {
+  const historyCount = db.prepare('SELECT COUNT(*) AS n FROM budget_history').get()
+  if (!note) {
+    const seeded = defaultBudgetNote()
+    saveBudget(db, seeded)
+    return seeded
+  }
+  if (!count?.n && !historyCount?.n) {
     const seeded = defaultBudgetNote()
     saveBudget(db, seeded)
     return seeded
@@ -362,7 +368,8 @@ export function saveBudget(db, budget) {
   const paycheckLabel = String(budget?.paycheckLabel || '').trim().slice(0, 120)
   const jobId = String(budget?.jobId || '').slice(0, 40)
   const list = Array.isArray(budget?.items) ? budget.items : []
-  const history = Array.isArray(budget?.history) ? budget.history : []
+  const replaceHistory = Array.isArray(budget?.history)
+  const history = replaceHistory ? budget.history : null
   const insert = db.prepare(`
     INSERT INTO budget_items (id, name, amount, paid, separate, position, category, debt_id, debt_payment_id)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -397,24 +404,26 @@ export function saveBudget(db, budget) {
         row.debtPaymentId,
       )
     })
-    db.exec('DELETE FROM budget_history')
-    const seenHist = new Set()
-    history.forEach(entry => {
-      const row = cleanHistoryEntry(entry)
-      if (seenHist.has(row.id)) return
-      seenHist.add(row.id)
-      insertHistory.run(
-        row.id,
-        row.paycheckDate,
-        row.paycheckLabel,
-        row.jobId,
-        row.starting,
-        row.remaining,
-        row.closedAt,
-        row.itemsJson,
-        row.paidJson,
-      )
-    })
+    if (replaceHistory) {
+      db.exec('DELETE FROM budget_history')
+      const seenHist = new Set()
+      history.forEach(entry => {
+        const row = cleanHistoryEntry(entry)
+        if (seenHist.has(row.id)) return
+        seenHist.add(row.id)
+        insertHistory.run(
+          row.id,
+          row.paycheckDate,
+          row.paycheckLabel,
+          row.jobId,
+          row.starting,
+          row.remaining,
+          row.closedAt,
+          row.itemsJson,
+          row.paidJson,
+        )
+      })
+    }
     db.exec('COMMIT')
   } catch (err) {
     db.exec('ROLLBACK')

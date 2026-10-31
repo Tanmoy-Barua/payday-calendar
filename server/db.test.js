@@ -108,5 +108,11 @@ test('sqlite stores budget checklist paid state', async () => {
   assert.equal(again.paycheckDate, '2026-10-15')
   assert.equal(again.history.length, 1)
   assert.equal(again.history[0].paid[0].amount, 600)
+
+  saveBudget(db, { ...again, items: [], history: undefined })
+  const kept = getState(await openDb(file)).budget
+  assert.equal(kept.items.length, 0)
+  assert.equal(kept.history.length, 1)
+  assert.equal(kept.history[0].id, 'hist-1')
   fs.rmSync(file, { force: true })
 })

@@ -202,7 +202,8 @@ function saveBudget(PDO $db, $budget): void {
     $paycheckLabel = trim(substr((string)(is_array($budget) ? ($budget['paycheckLabel'] ?? '') : ''), 0, 120));
     $jobId = substr((string)(is_array($budget) ? ($budget['jobId'] ?? '') : ''), 0, 40);
     $list = is_array($budget) && is_array($budget['items'] ?? null) ? $budget['items'] : [];
-    $history = is_array($budget) && is_array($budget['history'] ?? null) ? $budget['history'] : [];
+    $replaceHistory = is_array($budget) && array_key_exists('history', $budget) && is_array($budget['history']);
+    $history = $replaceHistory ? $budget['history'] : null;
     $insert = $db->prepare('INSERT INTO budget_items (id, name, amount, paid, separate, position, category, debt_id, debt_payment_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
     $insertHistory = $db->prepare('INSERT INTO budget_history (id, paycheck_date, paycheck_label, job_id, starting, remaining, closed_at, items_json, paid_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
     $db->beginTransaction();
@@ -229,24 +230,26 @@ function saveBudget(PDO $db, $budget): void {
                 $row['debtPaymentId'],
             ]);
         }
-        $db->exec('DELETE FROM budget_history');
-        $seenHist = [];
-        foreach ($history as $entry) {
-            if (!is_array($entry)) continue;
-            $row = cleanHistoryEntry($entry);
-            if (isset($seenHist[$row['id']])) continue;
-            $seenHist[$row['id']] = true;
-            $insertHistory->execute([
-                $row['id'],
-                $row['paycheckDate'],
-                $row['paycheckLabel'],
-                $row['jobId'],
-                $row['starting'],
-                $row['remaining'],
-                $row['closedAt'],
-                $row['itemsJson'],
-                $row['paidJson'],
-            ]);
+        if ($replaceHistory) {
+            $db->exec('DELETE FROM budget_history');
+            $seenHist = [];
+            foreach ($history as $entry) {
+                if (!is_array($entry)) continue;
+                $row = cleanHistoryEntry($entry);
+                if (isset($seenHist[$row['id']])) continue;
+                $seenHist[$row['id']] = true;
+                $insertHistory->execute([
+                    $row['id'],
+                    $row['paycheckDate'],
+                    $row['paycheckLabel'],
+                    $row['jobId'],
+                    $row['starting'],
+                    $row['remaining'],
+                    $row['closedAt'],
+                    $row['itemsJson'],
+                    $row['paidJson'],
+                ]);
+            }
         }
         $db->commit();
     } catch (Throwable $err) {
@@ -259,7 +262,13 @@ function getBudget(PDO $db): array {
     ensureBudgetTables($db);
     $note = $db->query('SELECT * FROM budget_notes WHERE id = 1')->fetch();
     $count = (int)$db->query('SELECT COUNT(*) AS n FROM budget_items')->fetch()['n'];
-    if (!$note || $count === 0) {
+    $historyCount = (int)$db->query('SELECT COUNT(*) AS n FROM budget_history')->fetch()['n'];
+    if (!$note) {
+        $seeded = defaultBudgetNote();
+        saveBudget($db, $seeded);
+        return $seeded;
+    }
+    if ($count === 0 && $historyCount === 0) {
         $seeded = defaultBudgetNote();
         saveBudget($db, $seeded);
         return $seeded;
