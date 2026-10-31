@@ -211,6 +211,7 @@ export default function Checklist({
   const paidCount = mainItems.filter(item => item.paid).length
   const sidePaidCount = otherItems.filter(item => item.paid).length
   const history = note.history || []
+  const canClose = note.items.length > 0
 
   function commitItems(nextItems) {
     const synced = syncDebtsWithChecklist(debts, note.items, nextItems, { today })
@@ -286,12 +287,16 @@ export default function Checklist({
               </p>
             ) : null}
           </div>
+          {canClose ? (
           <div className="paycheck-actions">
             <button className="btn primary" type="button" onClick={closeCurrent}>
               Close paycheck & save history
             </button>
           </div>
-          {confirmClose ? (
+          ) : history.length ? (
+            <p className="note">This paycheck is closed. Add payments below when you start the next one.</p>
+          ) : null}
+          {canClose && confirmClose ? (
             <div className="paycheck-confirm" role="dialog" aria-labelledby="close-paycheck-title">
               <p id="close-paycheck-title" className="paycheck-confirm-title">Close this paycheck now?</p>
               <p className="note">
