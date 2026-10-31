@@ -6,6 +6,8 @@ import {
   closePaycheckBudget,
   deleteHistoryEntry,
   defaultBudgetNote,
+  dropClosedItems,
+  historyHasPaycheck,
   newItemId,
   normalizeBudgetItem,
   plannedRemaining,
@@ -228,13 +230,14 @@ export default function Checklist({
   months = {},
   today = localToday(),
 }) {
-  const note = Array.isArray(budget?.items)
+  const rawNote = Array.isArray(budget?.items)
     ? {
       ...budget,
       items: budget.items.map(normalizeBudgetItem),
       history: Array.isArray(budget.history) ? budget.history : [],
     }
     : defaultBudgetNote()
+  const note = dropClosedItems(rawNote)
   const selected = jobs.length ? activeChecklistPaycheck(jobs, months, today, note) : null
   const starting = selected ? selected.amount : 0
   const [confirmClose, setConfirmClose] = useState(false)
@@ -246,7 +249,7 @@ export default function Checklist({
   const paidCount = mainItems.filter(item => item.paid).length
   const sidePaidCount = otherItems.filter(item => item.paid).length
   const history = note.history || []
-  const canClose = note.items.length > 0
+  const canClose = note.items.length > 0 && selected && !historyHasPaycheck(history, selected)
 
   function commitItems(nextItems) {
     const synced = syncDebtsWithChecklist(debts, note.items, nextItems, { today })
@@ -272,19 +275,20 @@ export default function Checklist({
 
   useEffect(() => {
     if (!selected) return
+    const itemsDropped = note.items.length !== rawNote.items.length
     const linked =
       note.jobId === selected.jobId
       && note.paycheckDate === selected.payday
       && Number(note.starting) === Number(selected.amount)
       && note.paycheckLabel === selected.label
-    if (linked) return
+    if (linked && !itemsDropped) return
     update({
       ...applyPaycheckSource(note, selected),
       items: note.items,
       history: note.history || [],
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selected?.jobId, selected?.payday, selected?.amount, selected?.label])
+  }, [selected?.jobId, selected?.payday, selected?.amount, selected?.label, note.items.length, history.length])
 
   function closeCurrent() {
     setConfirmClose(true)
@@ -295,7 +299,7 @@ export default function Checklist({
   }
 
   function confirmCloseNow() {
-    if (!note.items.length) {
+    if (!note.items.length || (selected && historyHasPaycheck(history, selected))) {
       setConfirmClose(false)
       return
     }

@@ -16,6 +16,8 @@ import {
   activeChecklistPaycheck,
   dueInDays,
   dueLeftLabel,
+  dropClosedItems,
+  historyHasPaycheck,
 } from './checklist.js'
 
 test('notepad budget ends at $74 when every main payment is planned', () => {
@@ -213,6 +215,53 @@ test('after close, this paycheck is the next calendar payday that still has earn
 
   const open = upcomingPaychecks(jobs, months, today)[0]
   assert.equal(open.payday, '2026-11-12')
+})
+
+test('closed 2-week notepad stays closed even if old payment rows come back', () => {
+  const jobs = [
+    {
+      id: 'company',
+      name: 'APS-SECURITY COMPANY',
+      freq: 'biweeklyThu',
+      anchor: '2026-10-15',
+      weekEnd: 'sun',
+    },
+  ]
+  const months = {
+    '2026-10': {
+      days: {
+        '2026-10-26': [{ id: 'a', job: 'company', hours: 8, amount: 1935.94 }],
+      },
+    },
+  }
+  const today = '2026-10-31'
+  const fourteen = upcomingPaychecks(jobs, months, today)[0]
+  assert.match(fourteen.label, /2 weeks/)
+  const items = [
+    { id: 'pay-rent', name: 'Rent 1/2', amount: 1060, paid: false, separate: false },
+    { id: 'pay-ladu', name: 'Ladu', amount: 600, paid: false, separate: false },
+  ]
+  const history = [{
+    id: 'hist-1',
+    jobId: ALL_COMPANIES_ID,
+    paycheckDate: '2026-11-05',
+    paycheckLabel: fourteen.label,
+    items,
+  }]
+  assert.equal(historyHasPaycheck(history, fourteen), true)
+  const selected = activeChecklistPaycheck(jobs, months, today, {
+    ...defaultBudgetNote(),
+    items,
+    history,
+    jobId: ALL_COMPANIES_ID,
+    paycheckLabel: fourteen.label,
+    paycheckDate: fourteen.payday,
+  })
+  assert.equal(selected.cardMode, 'paycheck')
+  assert.equal(selected.payday, '2026-11-12')
+  assert.equal(historyHasPaycheck(history, selected), false)
+  const cleaned = dropClosedItems({ items, history })
+  assert.equal(cleaned.items.length, 0)
 })
 
 test('due dates count days left from today', () => {
