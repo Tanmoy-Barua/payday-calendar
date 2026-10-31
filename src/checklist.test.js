@@ -88,6 +88,7 @@ test('starting amount defaults to all companies over 2 weeks', () => {
     },
   }
   const checks = upcomingPaychecks(jobs, months, '2026-10-11')
+  assert.equal(checks.length, 1)
   assert.equal(checks[0].jobId, ALL_COMPANIES_ID)
   assert.equal(checks[0].range.span, 14)
   assert.equal(checks[0].range.start, '2026-09-28')
@@ -99,9 +100,6 @@ test('starting amount defaults to all companies over 2 weeks', () => {
     { jobId: 'flex', jobName: 'Amazon Flex', amount: 80 },
     { jobId: 'uber', jobName: 'Uber', amount: 40 },
   ])
-  const company = checks.find(row => row.jobId === 'company')
-  assert.equal(company.payday, '2026-10-15')
-  assert.equal(company.amount, 295.04)
   const note = applyPaycheckSource(defaultBudgetNote(), checks[0])
   assert.equal(note.starting, 415.04)
   assert.equal(note.jobId, ALL_COMPANIES_ID)
@@ -109,9 +107,6 @@ test('starting amount defaults to all companies over 2 weeks', () => {
   assert.match(note.paycheckLabel, /All companies/)
   const again = applyPaycheckSource({ ...note, starting: 2200 }, checks[0])
   assert.equal(again.starting, 415.04)
-  const oneJob = applyPaycheckSource(note, company)
-  assert.equal(oneJob.earningsSource, 'job')
-  assert.equal(oneJob.jobId, 'company')
 })
 
 test('checklist earnings follow Last 14 days when the schedule asks for it', () => {
@@ -131,27 +126,26 @@ test('checklist earnings follow Last 14 days when the schedule asks for it', () 
     },
   }
   const checks = upcomingPaychecks(jobs, months, '2026-10-11')
-  const flex = checks.find(row => row.jobId === 'flex')
-  assert.equal(flex.range.span, 14)
-  assert.equal(flex.range.start, '2026-09-28')
-  assert.equal(flex.amount, 130)
+  assert.equal(checks.length, 1)
   assert.equal(checks[0].jobId, ALL_COMPANIES_ID)
+  assert.equal(checks[0].range.span, 14)
+  assert.equal(checks[0].range.start, '2026-09-28')
   assert.equal(checks[0].amount, 130)
 })
 
-test('closing a paycheck keeps history and resets paid marks', () => {
+test('closing a paycheck keeps history and clears the checklist', () => {
   const note = defaultBudgetNote()
   note.items[0].paid = true
   note.items[0].name = 'Rent'
   note.paycheckDate = '2026-10-15'
-  note.paycheckLabel = 'APS-SECURITY COMPANY · Thursday, October 15, 2026'
-  note.jobId = 'company'
+  note.paycheckLabel = 'All companies · 2 weeks'
+  note.jobId = ALL_COMPANIES_ID
   const nextPay = {
-    jobId: 'company',
-    jobName: 'APS-SECURITY COMPANY',
+    jobId: ALL_COMPANIES_ID,
+    jobName: 'All companies',
     payday: '2026-10-29',
     amount: 400,
-    label: 'APS-SECURITY COMPANY · Thursday, October 29, 2026',
+    label: 'All companies · 2 weeks',
   }
   const { budget, entry } = closePaycheckBudget(note, { closedAt: '2026-10-16', nextPaycheck: nextPay })
   assert.equal(entry.starting, 2200)
@@ -159,8 +153,7 @@ test('closing a paycheck keeps history and resets paid marks', () => {
   assert.equal(entry.paid[0].name, 'Rent')
   assert.equal(entry.paid[0].amount, 600)
   assert.equal(budget.history.length, 1)
-  assert.equal(budget.items[0].paid, false)
-  assert.equal(budget.items[0].debtPaymentId, '')
+  assert.equal(budget.items.length, 0)
   assert.equal(budget.starting, 400)
   assert.equal(budget.paycheckDate, '2026-10-29')
 })

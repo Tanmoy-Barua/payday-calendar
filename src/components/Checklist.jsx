@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { fmtShort, localToday, money } from '../dates.js'
 import {
-  ALL_COMPANIES_ID,
   ITEM_CATEGORIES,
   applyPaycheckSource,
   closePaycheckBudget,
@@ -13,7 +12,7 @@ import {
   remainingAfterPaid,
   runningSteps,
   syncDebtsWithChecklist,
-  upcomingPaychecks,
+  allCompaniesTwoWeeks,
 } from '../checklist.js'
 
 function emptyItem(separate = false) {
@@ -201,18 +200,9 @@ export default function Checklist({
     ...budget,
     items: budget.items.map(normalizeBudgetItem),
   } : defaultBudgetNote()
-  const paychecks = upcomingPaychecks(jobs, months, today)
-  const allCompanies = paychecks.find(row => row.jobId === ALL_COMPANIES_ID) || null
-  // Default to all-companies 2-week total. Only keep a single schedule if the user picked one.
-  const selected = note.earningsSource === 'job' && note.jobId && note.jobId !== ALL_COMPANIES_ID
-    ? (paychecks.find(row => row.jobId === note.jobId && row.payday === note.paycheckDate)
-      || paychecks.find(row => row.jobId === note.jobId)
-      || allCompanies
-      || paychecks[0]
-      || null)
-    : (allCompanies || paychecks[0] || null)
-  // Starting amount always comes from the selected earnings window — not editable.
+  const selected = jobs.length ? allCompaniesTwoWeeks(jobs, months, today) : null
   const starting = selected ? selected.amount : 0
+  const [confirmClose, setConfirmClose] = useState(false)
   const mainItems = note.items.filter(item => !item.separate)
   const otherItems = note.items.filter(item => item.separate)
   const left = remainingAfterPaid(starting, note.items)
@@ -244,12 +234,6 @@ export default function Checklist({
     commitItems(note.items.concat(emptyItem(separate)))
   }
 
-  function choosePaycheck(jobId) {
-    const paycheck = paychecks.find(row => row.jobId === jobId) || paychecks[0]
-    if (!paycheck) return
-    update(applyPaycheckSource(note, paycheck))
-  }
-
   useEffect(() => {
     if (!selected) return
     const linked =
@@ -263,10 +247,18 @@ export default function Checklist({
   }, [selected?.jobId, selected?.payday, selected?.amount, selected?.label])
 
   function closeCurrent() {
-    if (!window.confirm('Close this paycheck budget and save it to history? Paid marks will reset for the next check. Debt payments already logged stay on the Debt page.')) return
+    setConfirmClose(true)
+  }
+
+  function cancelClose() {
+    setConfirmClose(false)
+  }
+
+  function confirmCloseNow() {
     const linkedNote = selected ? applyPaycheckSource(note, selected) : { ...note, starting }
-    const nextPay = nextPaycheckAfter(jobs, months, linkedNote.paycheckDate || selected?.payday, linkedNote.jobId || selected?.jobId)
+    const nextPay = nextPaycheckAfter(jobs, months, linkedNote.paycheckDate || selected?.payday)
     const { budget: closed } = closePaycheckBudget(linkedNote, { nextPaycheck: nextPay })
+    setConfirmClose(false)
     update(closed)
   }
 
@@ -276,55 +268,49 @@ export default function Checklist({
         <div className="label">Notepad</div>
         <h2>{note.title || 'Budget Note'}</h2>
         <p className="note">
-          Starting amount defaults to what you earned from every company in the last 2 weeks. You can still pick one schedule if you want only that job. Set a payment category to Debt to pick a debt name — when you mark it paid, that amount is deducted on the Debt page.
+          Starting amount is one total from every job in the last 2 weeks. Add the payments for this paycheck below. When you close it, those rows are saved to history and this list starts empty so you can add the next paycheck’s bills.
         </p>
 
         <div className="paycheck-source">
-          <label className="field">
-            <span className="label">Earnings for this notepad</span>
-            <select
-              value={selected?.jobId || ''}
-              onChange={ev => choosePaycheck(ev.target.value)}
-              disabled={!paychecks.length}
-            >
-              {!paychecks.length ? <option value="">Add a pay schedule first</option> : null}
-              {paychecks.map(row => (
-                <option key={row.jobId} value={row.jobId}>
-                  {row.jobId === ALL_COMPANIES_ID
-                    ? `All companies · 2 weeks ${fmtShort(row.range?.start)}–${fmtShort(row.range?.end)} · ${money(row.amount)}`
-                    : `${row.jobName} · ${row.range?.span === 14 ? '2 weeks' : `${row.range?.span || '?'} days`} ${fmtShort(row.range?.start)}–${fmtShort(row.range?.end)} · ${money(row.amount)}`}
-                </option>
-              ))}
-            </select>
-          </label>
+          <div>
+            <div className="label">This paycheck</div>
+            {selected ? (
+              <p className="paycheck-one-total num">{money(selected.amount)}</p>
+            ) : (
+              <p className="note">Add a pay schedule so this total can follow your earnings.</p>
+            )}
+            {selected ? (
+              <p className="note">
+                All jobs · 2 weeks {fmtShort(selected.range.start)}–{fmtShort(selected.range.end)}
+                {selected.payday ? ` · next payday ${fmtShort(selected.payday)}` : ''}
+              </p>
+            ) : null}
+          </div>
           <div className="paycheck-actions">
             <button className="btn primary" type="button" onClick={closeCurrent}>
               Close paycheck & save history
             </button>
           </div>
-          {selected ? (
-            <p className="note">
-              {selected.jobId === ALL_COMPANIES_ID
-                ? 'Starting amount is the total earned from all companies in those 2 weeks.'
-                : `Starting amount is your total earned ${selected.range?.span === 14 ? 'in those 2 weeks' : 'in this window'}${selected.payday ? ` · payday ${fmtShort(selected.payday)}` : ''}.`}
-            </p>
-          ) : (
-            <p className="note">Add a pay schedule so the starting amount can follow your earnings.</p>
-          )}
+          {confirmClose ? (
+            <div className="paycheck-confirm" role="dialog" aria-labelledby="close-paycheck-title">
+              <p id="close-paycheck-title" className="paycheck-confirm-title">Close this paycheck now?</p>
+              <p className="note">
+                Yes saves it to history and clears the pay checklist so you add rows for the next paycheck. Later leaves everything as it is.
+              </p>
+              <div className="paycheck-confirm-actions">
+                <button className="btn primary" type="button" onClick={confirmCloseNow}>Yes, close now</button>
+                <button className="btn" type="button" onClick={cancelClose}>Later</button>
+              </div>
+            </div>
+          ) : null}
         </div>
 
         <div className="checklist-stats">
           <div>
             <div className="label">Starting amount</div>
             <div className="checklist-remain num" aria-live="polite">{money(starting)}</div>
-            <p className="note">
-              {selected?.jobId === ALL_COMPANIES_ID
-                ? 'All companies · 2-week total · not editable'
-                : selected?.range
-                  ? `${selected.range.span === 14 ? '2-week' : `${selected.range.span}-day`} total · not editable`
-                  : 'From pay period · not editable'}
-            </p>
-            {selected?.jobId === ALL_COMPANIES_ID && selected.breakdown?.length ? (
+            <p className="note">All jobs · 2-week total · not editable</p>
+            {selected?.breakdown?.length ? (
               <ul className="starting-breakdown" aria-label="Starting amount by company">
                 {selected.breakdown.map(row => (
                   <li key={row.jobId}>

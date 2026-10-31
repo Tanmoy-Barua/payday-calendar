@@ -1,5 +1,5 @@
-import { add, diff, fmtShort, fmtTodayLine, localToday, uid } from './dates.js'
-import { cardTotalRange, payOnOrAfter, periodFor } from './pay.js'
+import { add, fmtShort, localToday, uid } from './dates.js'
+import { payOnOrAfter } from './pay.js'
 import { totals } from './calc.js'
 
 export const DEFAULT_STARTING = 2200
@@ -256,30 +256,7 @@ export function allCompaniesTwoWeeks(jobs, months, today) {
 
 export function upcomingPaychecks(jobs, months, today) {
   if (!(jobs || []).length) return []
-  const perJob = (jobs || []).map(job => {
-    const payday = payOnOrAfter(job, today)
-    const period = periodFor(job, payday)
-    const window = cardTotalRange(job, today)
-    const start = window.start
-    const end = window.end
-    const sum = totals(months, start, end, job.id)
-    const span = Math.max(1, diff(start, end) + 1)
-    const spanLabel = span === 14 ? '2 weeks' : `${span} days`
-    const rangeText = `${fmtShort(start)}–${fmtShort(end)}`
-    return {
-      jobId: job.id,
-      jobName: job.name,
-      payday,
-      amount: money2(sum.a),
-      period,
-      range: { start, end, span },
-      cardMode: window.mode,
-      label: window.mode === 'paycheck'
-        ? `${job.name} · ${spanLabel} ${rangeText} · payday ${fmtTodayLine(payday)}`
-        : `${job.name} · ${window.title} ${rangeText}`,
-    }
-  }).sort((a, b) => a.payday.localeCompare(b.payday) || a.jobName.localeCompare(b.jobName))
-  return [allCompaniesTwoWeeks(jobs, months, today), ...perJob]
+  return [allCompaniesTwoWeeks(jobs, months, today)]
 }
 
 export function applyPaycheckSource(budget, paycheck) {
@@ -315,37 +292,16 @@ export function closePaycheckBudget(budget, { closedAt = localToday(), nextPaych
     }),
     paid: paidBreakdown(items),
   }
-  const resetItems = items.map(item => ({
-    ...normalizeBudgetItem(item),
-    paid: false,
-    debtPaymentId: '',
-  }))
   let next = {
     ...budget,
-    items: resetItems,
+    items: [],
     history: [entry, ...(budget?.history || [])],
   }
   if (nextPaycheck) next = applyPaycheckSource(next, nextPaycheck)
   return { budget: next, entry }
 }
 
-export function nextPaycheckAfter(jobs, months, payday, jobId) {
+export function nextPaycheckAfter(jobs, months, payday) {
   if (!jobs?.length) return null
-  if (!jobId || jobId === ALL_COMPANIES_ID) {
-    return allCompaniesTwoWeeks(jobs, months, payday ? add(payday, 1) : localToday())
-  }
-  const job = (jobs || []).find(row => row.id === jobId) || (jobs || [])[0]
-  if (!job || !payday) return upcomingPaychecks(jobs, months, localToday())[0] || null
-  const following = payOnOrAfter(job, add(payday, 1))
-  const period = periodFor(job, following)
-  const sum = totals(months, period.start, period.end, job.id)
-  return {
-    jobId: job.id,
-    jobName: job.name,
-    payday: following,
-    amount: money2(sum.a),
-    period,
-    range: { start: period.start, end: period.end, span: Math.max(1, diff(period.start, period.end) + 1) },
-    label: `${job.name} · ${fmtTodayLine(following)}`,
-  }
+  return allCompaniesTwoWeeks(jobs, months, payday ? add(payday, 1) : localToday())
 }

@@ -230,7 +230,14 @@ form{display:grid;gap:10px}
 .check-math li{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid var(--line)}
 .check-math li.is-paid{color:var(--accent)}
 .paycheck-source{display:grid;gap:10px;margin:12px 0 4px;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
+.paycheck-one-total{margin:4px 0 0;font-family:var(--display);font-weight:800;font-size:clamp(22px,4vw,28px);letter-spacing:-.02em;line-height:1.1}
 .paycheck-actions{display:flex;flex-wrap:wrap;gap:8px}
+.paycheck-confirm{
+  display:grid;gap:8px;padding:12px;border:1px solid var(--line);border-radius:12px;
+  background:color-mix(in srgb, var(--accent-soft) 55%, var(--surface));
+}
+.paycheck-confirm-title{margin:0;font-weight:700}
+.paycheck-confirm-actions{display:flex;flex-wrap:wrap;gap:8px}
 .history-list-wrap{display:grid;gap:10px;margin-top:12px}
 .history-card{border:1px solid var(--line);border-radius:12px;background:var(--bg);overflow:hidden}
 .history-toggle{width:100%;display:flex;justify-content:space-between;gap:12px;align-items:center;padding:12px;border:0;background:transparent;text-align:left;cursor:pointer;min-width:0}
@@ -339,6 +346,8 @@ select{text-overflow:ellipsis}
   .paycheck-source{padding:12px;border-radius:12px}
   .paycheck-actions{display:grid;grid-template-columns:1fr;gap:8px}
   .paycheck-actions .btn{width:100%}
+  .paycheck-confirm-actions{display:grid;grid-template-columns:1fr;gap:8px}
+  .paycheck-confirm-actions .btn{width:100%}
   .earn-grid{grid-template-columns:1fr;gap:8px}
   .past-row{grid-template-columns:1fr;gap:12px}
   .past-side{justify-items:start;text-align:left}
