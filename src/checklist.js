@@ -1,5 +1,5 @@
 import { add, fmtShort, localToday, uid } from './dates.js'
-import { payOnOrAfter, periodFor } from './pay.js'
+import { payOnOrAfter, periodFor, sharedPayOnOrAfter } from './pay.js'
 import { totals } from './calc.js'
 
 export const DEFAULT_STARTING = 2200
@@ -229,8 +229,7 @@ export function twoWeekWindow(today) {
 export function allCompaniesTwoWeeks(jobs, months, today) {
   const range = twoWeekWindow(today)
   const sum = totals(months, range.start, range.end)
-  const paydays = (jobs || []).map(job => payOnOrAfter(job, today)).sort()
-  const payday = paydays[0] || range.end
+  const payday = sharedPayOnOrAfter(jobs, today) || range.end
   const rangeText = `${fmtShort(range.start)}–${fmtShort(range.end)}`
   const breakdown = (jobs || []).map(job => {
     const part = totals(months, range.start, range.end, job.id)
@@ -270,6 +269,35 @@ export function applyPaycheckSource(budget, paycheck) {
     jobId: paycheck.jobId,
     earningsSource: paycheck.jobId === ALL_COMPANIES_ID ? 'all' : 'job',
     earningsEnd: '',
+  }
+}
+
+export function allJobsOnPayday(jobs, months, payday) {
+  const list = jobs || []
+  const breakdown = list.map(job => {
+    const per = periodFor(job, payday)
+    const amount = money2(totals(months, per.start, per.end, job.id).a)
+    return {
+      jobId: job.id,
+      jobName: job.name,
+      amount,
+      range: { start: per.start, end: per.end, payday: per.payday },
+    }
+  }).sort((a, b) => b.amount - a.amount || a.jobName.localeCompare(b.jobName))
+  const amount = money2(breakdown.reduce((sum, row) => sum + row.amount, 0))
+  const starts = breakdown.map(row => row.range.start).sort()
+  const ends = breakdown.map(row => row.range.end).sort()
+  return {
+    jobId: ALL_COMPANIES_ID,
+    jobName: 'All companies',
+    payday,
+    amount,
+    range: { start: starts[0] || payday, end: ends[ends.length - 1] || payday, payday },
+    period: { start: starts[0] || payday, end: ends[ends.length - 1] || payday, payday },
+    cardMode: 'paycheck',
+    isAllCompanies: true,
+    breakdown,
+    label: `All jobs · payday ${fmtShort(payday)}`,
   }
 }
 
@@ -324,12 +352,15 @@ export function activeChecklistPaycheck(jobs, months, today, budget) {
   const onJob = budget?.jobId && budget.jobId !== ALL_COMPANIES_ID
   const closed = items.length === 0 && history.length > 0
   if (closed) {
-    return nextPaycheckAfter(jobs, months, today, { afterPayday: add(today, -1), history })
+    const closedDates = new Set(history.map(entry => entry.paycheckDate).filter(Boolean))
+    let payday = sharedPayOnOrAfter(jobs, today)
+    for (let i = 0; i < 8 && closedDates.has(payday); i++) {
+      payday = sharedPayOnOrAfter(jobs, add(payday, 1))
+    }
+    return allJobsOnPayday(jobs, months, payday)
   }
   if (onJob && /^\d{4}-\d{2}-\d{2}$/.test(budget.paycheckDate || '')) {
-    const job = jobs.find(row => row.id === budget.jobId)
-    const current = job ? paycheckForJob(job, months, budget.paycheckDate) : null
-    if (current) return current
+    return allJobsOnPayday(jobs, months, sharedPayOnOrAfter(jobs, budget.paycheckDate) || budget.paycheckDate)
   }
   return allCompaniesTwoWeeks(jobs, months, today)
 }

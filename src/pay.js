@@ -64,6 +64,27 @@ export function cardTotalRange(job, today) {
 
 export const lagOf = job => job.freq === 'biweeklyThu' ? (job.weekEnd === 'sat' ? 5 : 4) : (Number(job.lag) || 0)
 
+export function isPayday(job, day) {
+  if (!job || !day) return false
+  if (job.freq === 'daily') return true
+  return payOnOrAfter(job, day) === day
+}
+
+/** Payday every job shares — APS biweekly Thursday wins over weekly Flex/Uber Thursdays. */
+export function sharedPayOnOrAfter(jobs, start) {
+  const scheduled = (jobs || []).filter(job => job && job.freq !== 'daily')
+  if (!scheduled.length) return start
+  let day = start
+  for (let i = 0; i < 80; i++) {
+    if (scheduled.every(job => isPayday(job, day))) return day
+    const nexts = scheduled.map(job => payOnOrAfter(job, day)).filter(Boolean).sort()
+    if (!nexts.length) return day
+    const next = nexts[0]
+    day = next <= day ? add(day, 1) : next
+  }
+  return scheduled.map(job => payOnOrAfter(job, start)).filter(Boolean).sort().at(-1) || start
+}
+
 export function payOnOrAfter(job, s) {
   const a = job.anchor
   if (job.freq === 'daily') return s

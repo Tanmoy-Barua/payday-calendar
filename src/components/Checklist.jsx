@@ -7,15 +7,15 @@ import {
   deleteHistoryEntry,
   defaultBudgetNote,
   newItemId,
-  nextPaycheckAfter,
   normalizeBudgetItem,
   plannedRemaining,
   remainingAfterPaid,
   runningSteps,
   syncDebtsWithChecklist,
   activeChecklistPaycheck,
-  upcomingJobPaychecks,
+  allJobsOnPayday,
 } from '../checklist.js'
+import { sharedPayOnOrAfter } from '../pay.js'
 
 function emptyItem(separate = false) {
   return normalizeBudgetItem({
@@ -216,10 +216,6 @@ export default function Checklist({
     : defaultBudgetNote()
   const selected = jobs.length ? activeChecklistPaycheck(jobs, months, today, note) : null
   const starting = selected ? selected.amount : 0
-  const alsoComing = selected && !selected.isAllCompanies
-    ? upcomingJobPaychecks(jobs, months, today, { afterPayday: add(today, -1), cycles: 1 })
-      .filter(row => row.jobId !== selected.jobId || row.payday !== selected.payday)
-    : []
   const [confirmClose, setConfirmClose] = useState(false)
   const mainItems = note.items.filter(item => !item.separate)
   const otherItems = note.items.filter(item => item.separate)
@@ -283,10 +279,10 @@ export default function Checklist({
       return
     }
     const linkedNote = selected ? applyPaycheckSource(note, selected) : { ...note, starting }
-    const nextPay = nextPaycheckAfter(jobs, months, today, {
-      afterPayday: selected?.isAllCompanies ? add(today, -1) : selected?.payday,
-      history: note.history || [],
-    })
+    const nextPayday = selected?.cardMode === '14'
+      ? sharedPayOnOrAfter(jobs, today)
+      : sharedPayOnOrAfter(jobs, add(selected?.payday || today, 1))
+    const nextPay = jobs.length ? allJobsOnPayday(jobs, months, nextPayday) : null
     const { budget: closed } = closePaycheckBudget(linkedNote, { nextPaycheck: nextPay })
     setConfirmClose(false)
     update(closed)
@@ -315,27 +311,16 @@ export default function Checklist({
             ) : (
               <p className="note">Add a pay schedule so this total can follow your earnings.</p>
             )}
-            {selected?.isAllCompanies ? (
+            {selected?.isAllCompanies && selected.cardMode === '14' ? (
               <p className="note">
                 All jobs · 2 weeks {fmtShort(selected.range.start)}–{fmtShort(selected.range.end)}
-                {selected.payday ? ` · next payday ${fmtShort(selected.payday)}` : ''}
+                {selected.payday ? ` · payday ${fmtLong(selected.payday)}` : ''}
               </p>
             ) : selected ? (
               <p className="note">
-                {selected.jobName}
-                {selected.payday ? ` · payday ${fmtLong(selected.payday)}` : ''}
+                All jobs · payday {fmtLong(selected.payday)}
                 {selected.range ? ` · covers ${fmtShort(selected.range.start)} – ${fmtShort(selected.range.end)}` : ''}
               </p>
-            ) : null}
-            {alsoComing.length ? (
-              <ul className="starting-breakdown" aria-label="Other upcoming paychecks">
-                {alsoComing.map(row => (
-                  <li key={`${row.jobId}-${row.payday}`}>
-                    <span className="starting-breakdown-name">{row.jobName} · {fmtShort(row.payday)}</span>
-                    <span className="num starting-breakdown-amount">{money(row.amount)}</span>
-                  </li>
-                ))}
-              </ul>
             ) : null}
           </div>
           {canClose ? (

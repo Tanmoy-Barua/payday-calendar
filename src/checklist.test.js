@@ -12,7 +12,7 @@ import {
   runningSteps,
   syncDebtsWithChecklist,
   upcomingPaychecks,
-  nextPaycheckAfter,
+  allJobsOnPayday,
   activeChecklistPaycheck,
 } from './checklist.js'
 
@@ -189,12 +189,12 @@ test('after close, this paycheck is the next calendar payday that still has earn
     },
   }
   const today = '2026-10-31'
-  const next = nextPaycheckAfter(jobs, months, today, { afterPayday: '2026-10-30' })
-  assert.equal(next.jobId, 'company')
+  const next = allJobsOnPayday(jobs, months, '2026-11-12')
+  assert.equal(next.jobId, ALL_COMPANIES_ID)
   assert.equal(next.payday, '2026-11-12')
-  assert.equal(next.range.start, '2026-10-26')
-  assert.equal(next.range.end, '2026-11-08')
   assert.equal(next.amount, 829.54)
+  assert.equal(next.breakdown.find(row => row.jobId === 'company').amount, 829.54)
+  assert.equal(next.breakdown.find(row => row.jobId === 'flex').amount, 0)
 
   const closedNote = {
     ...defaultBudgetNote(),
@@ -205,9 +205,12 @@ test('after close, this paycheck is the next calendar payday that still has earn
     history: [{ id: 'hist-1', jobId: ALL_COMPANIES_ID, paycheckDate: '2026-11-05' }],
   }
   const selected = activeChecklistPaycheck(jobs, months, today, closedNote)
-  assert.equal(selected.jobId, 'company')
+  assert.equal(selected.jobId, ALL_COMPANIES_ID)
   assert.equal(selected.payday, '2026-11-12')
   assert.equal(selected.amount, 829.54)
+
+  const open = upcomingPaychecks(jobs, months, today)[0]
+  assert.equal(open.payday, '2026-11-12')
 })
 
 test('deleting a history entry leaves the rest of the notepad', () => {

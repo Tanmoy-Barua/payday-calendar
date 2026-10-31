@@ -1,6 +1,6 @@
 import { useRef } from 'react'
 import { P, add, fmtLong, fmtMonth, fmtTime, hrs, money, moneyShort, ymd } from '../dates.js'
-import { payOnOrAfter, periodFor } from '../pay.js'
+import { payOnOrAfter, periodFor, sharedPayOnOrAfter } from '../pay.js'
 import { entriesOn } from '../calc.js'
 
 const DOWS = [
@@ -20,14 +20,13 @@ export default function Calendar({ jobs, months, view, selected, filter, today, 
   const start = add(first, -P(first).getUTCDay())
   const end = add(start, 41)
   const pays = {}
-  for (const j of jobs) {
-    // Daily pay would mark every cell — skip the PAY badge noise.
-    if (j.freq === 'daily') continue
-    let p = payOnOrAfter(j, start)
+  const scheduled = jobs.filter(j => j.freq !== 'daily')
+  if (scheduled.length) {
+    let p = sharedPayOnOrAfter(jobs, start)
     let guard = 0
-    while (p <= end && guard++ < 60) {
-      ;(pays[p] ||= []).push(j)
-      p = payOnOrAfter(j, add(p, 1))
+    while (p && p <= end && guard++ < 60) {
+      pays[p] = scheduled
+      p = sharedPayOnOrAfter(jobs, add(p, 1))
     }
   }
   const fj = jobs.find(j => j.id === filter) || null
@@ -110,7 +109,7 @@ export default function Calendar({ jobs, months, view, selected, filter, today, 
               {hours > 0 ? <span className={`hrs${amount > 0 ? '' : ' hrs-only'}`}>{hrs(hours)}</span> : null}
               {pj.length ? (
                 <span className="paytag">
-                  {pj.map(j => <span key={j.id} style={{ background: 'var(--pay)' }} title={`${j.name} payday`}>PAY</span>)}
+                  <span style={{ background: 'var(--pay)' }} title="Payday">PAY</span>
                 </span>
               ) : null}
             </button>

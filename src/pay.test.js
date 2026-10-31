@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { payOnOrAfter, payBefore, periodFor, lagOf, listPastPaychecks, cardTotalRange, normalizeCardTotal } from './pay.js'
+import { payOnOrAfter, payBefore, periodFor, lagOf, listPastPaychecks, cardTotalRange, normalizeCardTotal, sharedPayOnOrAfter } from './pay.js'
 import { totals, workDays, workShifts, monthRange, halfMonthRanges } from './calc.js'
 
 const company = { id: 'company', freq: 'biweeklyThu', anchor: '2026-10-01', weekEnd: 'sun', lag: 0 }
@@ -13,6 +13,18 @@ test('company paycheck covers Sep 28 through Oct 11 and pays Oct 15', () => {
   assert.equal(lagOf(company), 4)
   const per = periodFor(company, next)
   assert.deepEqual(per, { start: '2026-09-28', end: '2026-10-11', payday: '2026-10-15' })
+})
+
+test('all jobs share the later Thursday payday', () => {
+  const jobs = [
+    { id: 'company', name: 'APS', freq: 'biweeklyThu', anchor: '2026-10-15', weekEnd: 'sun' },
+    { id: 'flex', name: 'Amazon Flex', freq: 'weekly', anchor: '2026-10-01' },
+    { id: 'uber', name: 'Uber', freq: 'weekly', anchor: '2026-10-01' },
+  ]
+  assert.equal(payOnOrAfter(jobs[1], '2026-10-31'), '2026-11-05')
+  assert.equal(payOnOrAfter(jobs[0], '2026-10-31'), '2026-11-12')
+  assert.equal(sharedPayOnOrAfter(jobs, '2026-10-31'), '2026-11-12')
+  assert.equal(sharedPayOnOrAfter(jobs, '2026-11-13'), '2026-11-26')
 })
 
 test('saturday week end delays the check by 5 days', () => {

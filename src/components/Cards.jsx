@@ -1,5 +1,5 @@
 import { add, diff, fmtLong, fmtShort, fmtTodayLine, hrs, money } from '../dates.js'
-import { CARD_TOTALS, cardTotalRange, payOnOrAfter, periodFor } from '../pay.js'
+import { CARD_TOTALS, cardTotalRange, periodFor, sharedPayOnOrAfter } from '../pay.js'
 import { totals, workDays } from '../calc.js'
 
 export function jobColor(j) {
@@ -29,15 +29,16 @@ export default function Cards({ jobs, months, today, onAddSchedule }) {
           </div>
         </div>
       ) : jobs.map(j => {
-        const next = payOnOrAfter(j, today)
+        const next = sharedPayOnOrAfter(jobs, today)
         const per = periodFor(j, next)
         const window = cardTotalRange(j, today)
-        const sum = totals(months, window.start, window.end, j.id)
-        const worked = workDays(months, window.start, window.end, j.id)
+        const range = window.mode === 'paycheck' ? per : window
+        const sum = totals(months, range.start, range.end, j.id)
+        const worked = workDays(months, range.start, range.end, j.id)
         const days = diff(today, next)
         const cd = days === 0 ? 'Payday today' : days === 1 ? 'Tomorrow' : `In ${days} days`
         const after = today > per.end
-        const nextPer = after ? periodFor(j, payOnOrAfter(j, add(next, 1))) : null
+        const nextPer = after ? periodFor(j, sharedPayOnOrAfter(jobs, add(next, 1))) : null
         const later = nextPer ? totals(months, nextPer.start, nextPer.end, j.id) : null
         const subtitle = window.mode === 'paycheck'
           ? fmtTodayLine(next)
@@ -62,7 +63,7 @@ export default function Cards({ jobs, months, today, onAddSchedule }) {
               <div><span className="label">Days worked</span><span className="v">{worked}</span></div>
             </div>
             <div className="note">
-              {`Covers ${fmtShort(window.start)} – ${fmtShort(window.end)}`}
+              {`Covers ${fmtShort(range.start)} – ${fmtShort(range.end)}`}
               {j.rate ? ` · ${money(Number(j.rate))}/h` : ''}
               {window.mode !== 'paycheck' ? ` · next payday ${fmtShort(next)}` : ''}
             </div>

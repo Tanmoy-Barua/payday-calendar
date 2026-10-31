@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { P, add, fmtLong, fmtShort, fmtShiftRange, hrs, localToday, money, uid } from '../dates.js'
-import { CARD_TOTALS, FREQ, normalizeCardTotal, payOnOrAfter, periodContaining } from '../pay.js'
+import { CARD_TOTALS, FREQ, normalizeCardTotal, payOnOrAfter, periodContaining, sharedPayOnOrAfter } from '../pay.js'
 import { entriesOn, totals } from '../calc.js'
 import { jobColor } from './Cards.jsx'
 
@@ -175,7 +175,7 @@ function JobList({ jobs, today, confirmDel, onDone, onEdit, onAskRemove, onRemov
                 {j.name}
               </div>
               <div className="meta">
-                {FREQ[j.freq]} · next {fmtShort(payOnOrAfter(j, today))}
+                {FREQ[j.freq]} · next {fmtShort(sharedPayOnOrAfter(jobs, today))}
                 {j.freq === 'biweeklyThu'
                   ? ` · weeks end ${j.weekEnd === 'sat' ? 'Saturday' : 'Sunday'}`
                   : (j.lag ? ` · ${j.lag}-day delay` : '')}
