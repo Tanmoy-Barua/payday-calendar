@@ -159,7 +159,7 @@ function cleanBudgetItem(array $item, int $position): array {
         : money2(max(0, (float)$raw));
     $id = substr((string)($item['id'] ?? ''), 0, 40);
     $separate = !empty($item['separate']) ? 1 : 0;
-    $category = (!$separate && (($item['category'] ?? '') === 'debt')) ? 'debt' : 'other';
+    $category = (($item['category'] ?? '') === 'debt') ? 'debt' : 'other';
     return [
         'id' => $id !== '' ? $id : ('item-' . $position),
         'name' => trim(substr((string)($item['name'] ?? ''), 0, 60)),
@@ -285,7 +285,7 @@ function getBudget(PDO $db): array {
     $items = [];
     foreach ($db->query('SELECT * FROM budget_items ORDER BY separate ASC, position ASC, id ASC') as $row) {
         $separate = !empty($row['separate']);
-        $category = (!$separate && (($row['category'] ?? '') === 'debt')) ? 'debt' : 'other';
+        $category = (($row['category'] ?? '') === 'debt') ? 'debt' : 'other';
         $items[] = [
             'id' => $row['id'],
             'name' => (string)($row['name'] ?? ''),

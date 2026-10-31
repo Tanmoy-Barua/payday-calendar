@@ -34,7 +34,7 @@ function emptyItem(separate = false) {
 }
 
 function ItemRow({ item, debts, onChange, onRemove, today }) {
-  const isDebt = !item.separate && item.category === 'debt'
+  const isDebt = item.category === 'debt'
   const debtOptions = debts || []
   const daysLeft = dueInDays(item.dueDate, today)
 
@@ -51,34 +51,32 @@ function ItemRow({ item, debts, onChange, onRemove, today }) {
         aria-label={item.paid ? 'Mark not paid' : 'Mark paid'}
       />
       <div className="check-fields">
-        {!item.separate ? (
-          <label className="field check-category">
-            <span className="label">Category</span>
-            <select
-              aria-label="Category"
-              value={item.category === 'debt' ? 'debt' : 'other'}
-              onChange={ev => {
-                const category = ev.target.value === 'debt' ? 'debt' : 'other'
-                if (category === 'debt') {
-                  const first = debtOptions[0]
-                  patch({
-                    category,
-                    debtId: item.debtId || first?.id || '',
-                    name: item.debtId
-                      ? (debtOptions.find(d => d.id === item.debtId)?.name || item.name)
-                      : (first?.name || item.name),
-                  })
-                  return
-                }
-                patch({ category, debtId: '', debtPaymentId: item.paid ? item.debtPaymentId : '' })
-              }}
-            >
-              {ITEM_CATEGORIES.map(cat => (
-                <option key={cat.id} value={cat.id}>{cat.label}</option>
-              ))}
-            </select>
-          </label>
-        ) : null}
+        <label className="field check-category">
+          <span className="label">Category</span>
+          <select
+            aria-label="Category"
+            value={item.category === 'debt' ? 'debt' : 'other'}
+            onChange={ev => {
+              const category = ev.target.value === 'debt' ? 'debt' : 'other'
+              if (category === 'debt') {
+                const first = debtOptions[0]
+                patch({
+                  category,
+                  debtId: item.debtId || first?.id || '',
+                  name: item.debtId
+                    ? (debtOptions.find(d => d.id === item.debtId)?.name || item.name)
+                    : (first?.name || item.name),
+                })
+                return
+              }
+              patch({ category, debtId: '', debtPaymentId: item.paid ? item.debtPaymentId : '' })
+            }}
+          >
+            {ITEM_CATEGORIES.map(cat => (
+              <option key={cat.id} value={cat.id}>{cat.label}</option>
+            ))}
+          </select>
+        </label>
         {isDebt ? (
           <label className="field check-debt">
             <span className="label">Debt</span>
@@ -206,7 +204,10 @@ function HistoryCard({ entry, onDelete }) {
               <ul className="history-list">
                 {side.map(row => (
                   <li key={row.id}>
-                    <span>{row.name}</span>
+                    <span>
+                      {row.name}
+                      {row.category === 'debt' ? ' · debt' : ''}
+                    </span>
                     <span className="num">{money(row.amount)}</span>
                   </li>
                 ))}
@@ -452,7 +453,7 @@ export default function Checklist({
         <div className="label">Also track</div>
         <h3>Cards and side notes</h3>
         <p className="note">
-          Prime, Credit One, Capital One, Apple Card, Chevron Card, and similar notes stay here. Mark paid to subtract them from Remaining now and from the leftover above.
+          Choose category Debt to link a row to a debt, same as the pay checklist. Mark paid to subtract the amount from Remaining now and from the leftover above.
         </p>
         <div className="check-list">
           {otherItems.map(item => (

@@ -10,6 +10,7 @@ import {
   plannedRemaining,
   remainingAfterPaid,
   runningSteps,
+  normalizeBudgetItem,
   syncDebtsWithChecklist,
   upcomingPaychecks,
   allJobsOnPayday,
@@ -310,4 +311,37 @@ test('changing the paid debt amount updates the linked payment', () => {
   assert.equal(synced.debts[0].payments[0].id, 'link-1')
   assert.equal(synced.debts[0].payments[0].amount, 250)
   assert.equal(synced.debts[0].payments[0].day, '2026-10-09')
+})
+
+test('side notes keep a Debt category like the pay checklist', () => {
+  const item = normalizeBudgetItem({
+    id: 'sep-prime',
+    name: 'Prime',
+    amount: 50,
+    separate: true,
+    category: 'debt',
+    debtId: 'card',
+  })
+  assert.equal(item.separate, true)
+  assert.equal(item.category, 'debt')
+  assert.equal(item.debtId, 'card')
+})
+
+test('marking a side debt note paid adds that amount to the debt', () => {
+  const debts = [{ id: 'card', name: 'Credit One', total: 400, opened: '2026-01-01', payments: [] }]
+  const prev = [{
+    id: 'sep-1',
+    name: 'Credit One',
+    amount: 50,
+    paid: false,
+    separate: true,
+    category: 'debt',
+    debtId: 'card',
+    debtPaymentId: '',
+  }]
+  const next = [{ ...prev[0], paid: true }]
+  const synced = syncDebtsWithChecklist(debts, prev, next, { today: '2026-10-31' })
+  assert.equal(synced.debts[0].payments.length, 1)
+  assert.equal(synced.debts[0].payments[0].amount, 50)
+  assert.equal(synced.items[0].debtPaymentId, synced.debts[0].payments[0].id)
 })

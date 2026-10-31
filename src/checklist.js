@@ -21,8 +21,8 @@ export function normalizeBudgetItem(item = {}) {
     amount: item.amount === '' || item.amount == null ? '' : item.amount,
     paid: !!item.paid,
     separate: !!item.separate,
-    category: item.separate ? 'other' : category,
-    debtId: category === 'debt' && !item.separate ? String(item.debtId || '') : '',
+    category,
+    debtId: category === 'debt' ? String(item.debtId || '') : '',
     debtPaymentId: String(item.debtPaymentId || ''),
     dueDate: /^\d{4}-\d{2}-\d{2}$/.test(item.dueDate || '') ? item.dueDate : '',
   }
@@ -212,7 +212,7 @@ export function syncDebtsWithChecklist(debts, prevItems, nextItems, { today = lo
   const syncedItems = nextNormalized.map(item => {
     const prev = prevMap.get(item.id) || normalizeBudgetItem({ id: item.id })
     const wasLinked = prev.category === 'debt' && prev.paid && prev.debtPaymentId
-    const shouldLink = item.category === 'debt' && item.paid && !item.separate
+    const shouldLink = item.category === 'debt' && item.paid
 
     if (!shouldLink) {
       if (wasLinked) nextDebts = removeLinkedPayment(nextDebts, prev.debtPaymentId)

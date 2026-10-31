@@ -106,6 +106,15 @@ test('sqlite stores budget checklist paid state', async () => {
   assert.equal(again.items[0].paid, true)
   assert.equal(again.items[0].name, 'Rent')
   assert.equal(again.items[0].dueDate, '2026-11-12')
+  const prime = next.items.find(item => item.id === 'sep-prime')
+  prime.category = 'debt'
+  prime.debtId = 'card'
+  saveBudget(db, { ...next, items: next.items.map(item => (item.id === 'sep-prime' ? prime : item)) })
+  const withSide = getState(await openDb(file)).budget
+  const savedPrime = withSide.items.find(item => item.id === 'sep-prime')
+  assert.equal(savedPrime.separate, true)
+  assert.equal(savedPrime.category, 'debt')
+  assert.equal(savedPrime.debtId, 'card')
   assert.equal(again.items[0].amount, 600)
   assert.equal(again.paycheckDate, '2026-10-15')
   assert.equal(again.earningsEnd, '2026-10-25')

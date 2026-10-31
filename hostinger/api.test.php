@@ -82,6 +82,10 @@ assert($budgetState['budget']['items'][8]['name'] === 'Prime', 'prime side item 
                 $item['name'] = 'Rent';
                 $item['dueDate'] = '2026-11-12';
             }
+            if (($item['id'] ?? '') === 'sep-prime') {
+                $item['category'] = 'debt';
+                $item['debtId'] = 'card';
+            }
             return $item;
         }, $budgetState['budget']['items'], array_keys($budgetState['budget']['items'])),
         'history' => [[
@@ -102,6 +106,13 @@ assert($status === 200, 'save budget');
 assert($savedBudget['budget']['items'][0]['paid'] === true, 'budget paid kept');
 assert($savedBudget['budget']['items'][0]['name'] === 'Rent', 'budget name kept');
 assert($savedBudget['budget']['items'][0]['dueDate'] === '2026-11-12', 'due date kept');
+$prime = null;
+foreach ($savedBudget['budget']['items'] as $item) {
+    if (($item['id'] ?? '') === 'sep-prime') $prime = $item;
+}
+assert($prime && !empty($prime['separate']), 'prime stays a side item');
+assert($prime['category'] === 'debt', 'side item debt category kept');
+assert($prime['debtId'] === 'card', 'side item debt id kept');
 assert($savedBudget['budget']['paycheckDate'] === '2026-10-15', 'paycheck date kept');
 assert($savedBudget['budget']['earningsEnd'] === '2026-10-25', 'earnings window kept');
 assert(count($savedBudget['budget']['history']) === 1, 'history kept');

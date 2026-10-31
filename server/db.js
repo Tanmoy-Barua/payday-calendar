@@ -259,7 +259,7 @@ export function getState(db) {
 }
 
 function budgetItemFromRow(row) {
-  const category = row.category === 'debt' && !row.separate ? 'debt' : 'other'
+  const category = row.category === 'debt' ? 'debt' : 'other'
   return {
     id: row.id,
     name: row.name || '',
@@ -328,7 +328,7 @@ function cleanBudgetItem(item, position) {
     ? null
     : money2(Math.max(0, Number(raw)))
   const separate = item?.separate ? 1 : 0
-  const category = !separate && item?.category === 'debt' ? 'debt' : 'other'
+  const category = item?.category === 'debt' ? 'debt' : 'other'
   return {
     id: String(item?.id || '').slice(0, 40) || `item-${position}`,
     name: String(item?.name || '').trim().slice(0, 60),
