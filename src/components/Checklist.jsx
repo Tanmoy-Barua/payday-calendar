@@ -256,10 +256,6 @@ export default function Checklist({
   }
 
   function confirmCloseNow() {
-    if (!note.items.length) {
-      setConfirmClose(false)
-      return
-    }
     const linkedNote = selected ? applyPaycheckSource(note, selected) : { ...note, starting }
     const nextPay = nextPaycheckAfter(jobs, months, linkedNote.paycheckDate || selected?.payday)
     const { budget: closed } = closePaycheckBudget(linkedNote, { nextPaycheck: nextPay })
