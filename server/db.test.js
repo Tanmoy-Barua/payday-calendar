@@ -88,7 +88,7 @@ test('sqlite stores budget checklist paid state', async () => {
     paycheckLabel: 'APS-SECURITY COMPANY · Thursday, October 15, 2026',
     jobId: 'company',
     earningsEnd: '2026-10-25',
-    items: seeded.items.map((item, i) => (i === 0 ? { ...item, paid: true, name: 'Rent' } : item)),
+    items: seeded.items.map((item, i) => (i === 0 ? { ...item, paid: true, name: 'Rent', dueDate: '2026-11-12' } : item)),
     history: [{
       id: 'hist-1',
       paycheckDate: '2026-10-01',
@@ -105,6 +105,7 @@ test('sqlite stores budget checklist paid state', async () => {
   const again = getState(await openDb(file)).budget
   assert.equal(again.items[0].paid, true)
   assert.equal(again.items[0].name, 'Rent')
+  assert.equal(again.items[0].dueDate, '2026-11-12')
   assert.equal(again.items[0].amount, 600)
   assert.equal(again.paycheckDate, '2026-10-15')
   assert.equal(again.earningsEnd, '2026-10-25')

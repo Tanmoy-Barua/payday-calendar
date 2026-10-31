@@ -14,6 +14,8 @@ import {
   syncDebtsWithChecklist,
   activeChecklistPaycheck,
   allJobsOnPayday,
+  dueInDays,
+  dueLeftLabel,
 } from '../checklist.js'
 import { sharedPayOnOrAfter } from '../pay.js'
 
@@ -27,12 +29,14 @@ function emptyItem(separate = false) {
     category: 'other',
     debtId: '',
     debtPaymentId: '',
+    dueDate: '',
   })
 }
 
-function ItemRow({ item, debts, onChange, onRemove }) {
+function ItemRow({ item, debts, onChange, onRemove, today }) {
   const isDebt = !item.separate && item.category === 'debt'
   const debtOptions = debts || []
+  const daysLeft = dueInDays(item.dueDate, today)
 
   function patch(partial) {
     onChange(normalizeBudgetItem({ ...item, ...partial }))
@@ -122,6 +126,23 @@ function ItemRow({ item, debts, onChange, onRemove }) {
             patch({ amount: next })
           }}
         />
+        <label className="field check-due">
+          <span className="label">Due date</span>
+          <input
+            className="check-due-date"
+            type="date"
+            aria-label="Due date"
+            value={item.dueDate || ''}
+            onChange={ev => patch({ dueDate: ev.target.value })}
+          />
+          {daysLeft == null ? (
+            <span className="note check-due-left">Days left</span>
+          ) : (
+            <span className={`check-due-left${daysLeft < 0 ? ' is-late' : ''}${daysLeft === 0 ? ' is-today' : ''}`}>
+              {dueLeftLabel(daysLeft)}
+            </span>
+          )}
+        </label>
       </div>
       <button className="btn ghost check-remove" type="button" onClick={() => onRemove(item.id)} aria-label="Remove item">
         ×
@@ -393,6 +414,7 @@ export default function Checklist({
                 key={item.id}
                 item={item}
                 debts={debts}
+                today={today}
                 onChange={setItem}
                 onRemove={removeItem}
               />
@@ -438,6 +460,7 @@ export default function Checklist({
               key={item.id}
               item={item}
               debts={debts}
+              today={today}
               onChange={setItem}
               onRemove={removeItem}
             />

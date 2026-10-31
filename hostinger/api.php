@@ -88,7 +88,8 @@ function ensureBudgetTables(PDO $db): void {
           position INTEGER NOT NULL DEFAULT 0,
           category TEXT NOT NULL DEFAULT \'other\',
           debt_id TEXT NOT NULL DEFAULT \'\',
-          debt_payment_id TEXT NOT NULL DEFAULT \'\'
+          debt_payment_id TEXT NOT NULL DEFAULT \'\',
+          due_date TEXT NOT NULL DEFAULT \'\'
         );
         CREATE TABLE IF NOT EXISTS budget_history (
           id TEXT PRIMARY KEY,
@@ -113,6 +114,7 @@ function ensureBudgetTables(PDO $db): void {
     if (!isset($itemCols['category'])) $db->exec("ALTER TABLE budget_items ADD COLUMN category TEXT NOT NULL DEFAULT 'other'");
     if (!isset($itemCols['debt_id'])) $db->exec("ALTER TABLE budget_items ADD COLUMN debt_id TEXT NOT NULL DEFAULT ''");
     if (!isset($itemCols['debt_payment_id'])) $db->exec("ALTER TABLE budget_items ADD COLUMN debt_payment_id TEXT NOT NULL DEFAULT ''");
+    if (!isset($itemCols['due_date'])) $db->exec("ALTER TABLE budget_items ADD COLUMN due_date TEXT NOT NULL DEFAULT ''");
 }
 
 function defaultBudgetNote(): array {
@@ -168,6 +170,7 @@ function cleanBudgetItem(array $item, int $position): array {
         'category' => $category,
         'debtId' => $category === 'debt' ? substr((string)($item['debtId'] ?? ''), 0, 40) : '',
         'debtPaymentId' => substr((string)($item['debtPaymentId'] ?? ''), 0, 40),
+        'dueDate' => preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)($item['dueDate'] ?? '')) ? $item['dueDate'] : '',
     ];
 }
 
@@ -209,7 +212,7 @@ function saveBudget(PDO $db, $budget): void {
     $list = is_array($budget) && is_array($budget['items'] ?? null) ? $budget['items'] : [];
     $replaceHistory = is_array($budget) && array_key_exists('history', $budget) && is_array($budget['history']);
     $history = $replaceHistory ? $budget['history'] : null;
-    $insert = $db->prepare('INSERT INTO budget_items (id, name, amount, paid, separate, position, category, debt_id, debt_payment_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
+    $insert = $db->prepare('INSERT INTO budget_items (id, name, amount, paid, separate, position, category, debt_id, debt_payment_id, due_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
     $insertHistory = $db->prepare('INSERT INTO budget_history (id, paycheck_date, paycheck_label, job_id, starting, remaining, closed_at, items_json, paid_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
     $db->beginTransaction();
     try {
@@ -233,6 +236,7 @@ function saveBudget(PDO $db, $budget): void {
                 $row['category'],
                 $row['debtId'],
                 $row['debtPaymentId'],
+                $row['dueDate'],
             ]);
         }
         if ($replaceHistory) {
@@ -291,6 +295,7 @@ function getBudget(PDO $db): array {
             'category' => $category,
             'debtId' => $category === 'debt' ? (string)($row['debt_id'] ?? '') : '',
             'debtPaymentId' => (string)($row['debt_payment_id'] ?? ''),
+            'dueDate' => (string)($row['due_date'] ?? ''),
         ];
     }
     $history = [];

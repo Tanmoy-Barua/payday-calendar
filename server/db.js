@@ -144,7 +144,8 @@ function ensureBudgetTables(db) {
       position INTEGER NOT NULL DEFAULT 0,
       category TEXT NOT NULL DEFAULT 'other',
       debt_id TEXT NOT NULL DEFAULT '',
-      debt_payment_id TEXT NOT NULL DEFAULT ''
+      debt_payment_id TEXT NOT NULL DEFAULT '',
+      due_date TEXT NOT NULL DEFAULT ''
     );
     CREATE TABLE IF NOT EXISTS budget_history (
       id TEXT PRIMARY KEY,
@@ -167,6 +168,7 @@ function ensureBudgetTables(db) {
   if (!itemCols.includes('category')) db.exec(`ALTER TABLE budget_items ADD COLUMN category TEXT NOT NULL DEFAULT 'other'`)
   if (!itemCols.includes('debt_id')) db.exec(`ALTER TABLE budget_items ADD COLUMN debt_id TEXT NOT NULL DEFAULT ''`)
   if (!itemCols.includes('debt_payment_id')) db.exec(`ALTER TABLE budget_items ADD COLUMN debt_payment_id TEXT NOT NULL DEFAULT ''`)
+  if (!itemCols.includes('due_date')) db.exec(`ALTER TABLE budget_items ADD COLUMN due_date TEXT NOT NULL DEFAULT ''`)
 }
 
 function ensureDebtColumns(db) {
@@ -267,6 +269,7 @@ function budgetItemFromRow(row) {
     category,
     debtId: category === 'debt' ? (row.debt_id || '') : '',
     debtPaymentId: row.debt_payment_id || '',
+    dueDate: row.due_date || '',
   }
 }
 
@@ -336,6 +339,7 @@ function cleanBudgetItem(item, position) {
     category,
     debtId: category === 'debt' ? String(item?.debtId || '').slice(0, 40) : '',
     debtPaymentId: String(item?.debtPaymentId || '').slice(0, 40),
+    dueDate: /^\d{4}-\d{2}-\d{2}$/.test(item?.dueDate || '') ? item.dueDate : '',
   }
 }
 
@@ -375,8 +379,8 @@ export function saveBudget(db, budget) {
   const replaceHistory = Array.isArray(budget?.history)
   const history = replaceHistory ? budget.history : null
   const insert = db.prepare(`
-    INSERT INTO budget_items (id, name, amount, paid, separate, position, category, debt_id, debt_payment_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO budget_items (id, name, amount, paid, separate, position, category, debt_id, debt_payment_id, due_date)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `)
   const insertHistory = db.prepare(`
     INSERT INTO budget_history
@@ -406,6 +410,7 @@ export function saveBudget(db, budget) {
         row.category,
         row.debtId,
         row.debtPaymentId,
+        row.dueDate,
       )
     })
     if (replaceHistory) {

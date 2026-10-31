@@ -14,6 +14,8 @@ import {
   upcomingPaychecks,
   allJobsOnPayday,
   activeChecklistPaycheck,
+  dueInDays,
+  dueLeftLabel,
 } from './checklist.js'
 
 test('notepad budget ends at $74 when every main payment is planned', () => {
@@ -211,6 +213,18 @@ test('after close, this paycheck is the next calendar payday that still has earn
 
   const open = upcomingPaychecks(jobs, months, today)[0]
   assert.equal(open.payday, '2026-11-12')
+})
+
+test('due dates count days left from today', () => {
+  assert.equal(dueInDays('', '2026-10-31'), null)
+  assert.equal(dueInDays('2026-10-31', '2026-10-31'), 0)
+  assert.equal(dueInDays('2026-11-12', '2026-10-31'), 12)
+  assert.equal(dueInDays('2026-10-29', '2026-10-31'), -2)
+  assert.equal(dueLeftLabel(12), '12 days left')
+  assert.equal(dueLeftLabel(1), '1 day left')
+  assert.equal(dueLeftLabel(0), 'Due today')
+  assert.equal(dueLeftLabel(-1), '1 day late')
+  assert.equal(dueLeftLabel(-2), '2 days late')
 })
 
 test('deleting a history entry leaves the rest of the notepad', () => {

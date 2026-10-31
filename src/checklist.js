@@ -1,4 +1,4 @@
-import { add, fmtShort, localToday, uid } from './dates.js'
+import { add, diff, fmtShort, localToday, uid } from './dates.js'
 import { payOnOrAfter, periodFor, sharedPayOnOrAfter } from './pay.js'
 import { totals } from './calc.js'
 
@@ -24,7 +24,22 @@ export function normalizeBudgetItem(item = {}) {
     category: item.separate ? 'other' : category,
     debtId: category === 'debt' && !item.separate ? String(item.debtId || '') : '',
     debtPaymentId: String(item.debtPaymentId || ''),
+    dueDate: /^\d{4}-\d{2}-\d{2}$/.test(item.dueDate || '') ? item.dueDate : '',
   }
+}
+
+export function dueInDays(dueDate, today) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dueDate || '')) return null
+  return diff(today, dueDate)
+}
+
+export function dueLeftLabel(days) {
+  if (days == null) return ''
+  if (days === 0) return 'Due today'
+  if (days === 1) return '1 day left'
+  if (days > 1) return `${days} days left`
+  if (days === -1) return '1 day late'
+  return `${-days} days late`
 }
 
 function blankItemFields(amount = '', separate = false) {

@@ -80,6 +80,7 @@ assert($budgetState['budget']['items'][8]['name'] === 'Prime', 'prime side item 
             if ($i === 0) {
                 $item['paid'] = true;
                 $item['name'] = 'Rent';
+                $item['dueDate'] = '2026-11-12';
             }
             return $item;
         }, $budgetState['budget']['items'], array_keys($budgetState['budget']['items'])),
@@ -100,6 +101,7 @@ assert($status === 200, 'save budget');
 [$status, $savedBudget] = handleRequest('GET', 'state', null, openDb());
 assert($savedBudget['budget']['items'][0]['paid'] === true, 'budget paid kept');
 assert($savedBudget['budget']['items'][0]['name'] === 'Rent', 'budget name kept');
+assert($savedBudget['budget']['items'][0]['dueDate'] === '2026-11-12', 'due date kept');
 assert($savedBudget['budget']['paycheckDate'] === '2026-10-15', 'paycheck date kept');
 assert($savedBudget['budget']['earningsEnd'] === '2026-10-25', 'earnings window kept');
 assert(count($savedBudget['budget']['history']) === 1, 'history kept');
