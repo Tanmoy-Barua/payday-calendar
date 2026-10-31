@@ -37,7 +37,7 @@ import Debt from './components/Debt.jsx'
 import Checklist from './components/Checklist.jsx'
 import Settings from './components/Settings.jsx'
 import LockScreen from './components/LockScreen.jsx'
-import { defaultBudgetNote } from './checklist.js'
+import { defaultBudgetNote, dropClosedItems } from './checklist.js'
 import { applyTheme, loadTheme } from './settings.js'
 
 const today = localToday()
@@ -115,6 +115,7 @@ export default function App() {
   const unlockingRef = useRef(false)
   const idleTimerRef = useRef(null)
   const lastTouchRef = useRef(0)
+  const budgetWriteRef = useRef(Promise.resolve())
 
   function changeTheme(next) {
     setTheme(applyTheme(next))
@@ -230,7 +231,7 @@ export default function App() {
       setJobs(data.jobs || [])
       setMonths(data.months || {})
       setDebts(data.debts || [])
-      setBudget(data.budget || defaultBudgetNote())
+      setBudget(dropClosedItems(data.budget || defaultBudgetNote()))
       setFilter(data.jobs?.[0]?.id || null)
       setStatus('Saved to the database')
       setReady(true)
@@ -337,8 +338,10 @@ export default function App() {
   async function persistBudget(next) {
     setBudget(next)
     setStatus('Saving…')
+    const write = budgetWriteRef.current.then(() => saveBudget(next))
+    budgetWriteRef.current = write.catch(() => {})
     try {
-      await saveBudget(next)
+      await write
       setStatus('Saved')
     } catch {
       setStatus('Could not save, try again')

@@ -356,28 +356,62 @@ export function nextPaycheckAfter(jobs, months, today, { afterPayday = '', histo
   return list.find(row => row.amount > 0) || list[0] || null
 }
 
+export function historyHasPaycheck(history, paycheck) {
+  if (!paycheck) return false
+  return (history || []).some(entry => {
+    if (paycheck.label && entry.paycheckLabel === paycheck.label) return true
+    if (entry.jobId && paycheck.jobId && entry.paycheckDate === paycheck.payday && entry.jobId === paycheck.jobId) {
+      return true
+    }
+    return false
+  })
+}
+
+/** Drop rows that were already saved when this paycheck was closed (save-race leftovers). */
+export function dropClosedItems(budget) {
+  const items = Array.isArray(budget?.items) ? budget.items : []
+  const history = Array.isArray(budget?.history) ? budget.history : []
+  if (!items.length || !history.length) return budget
+  const closedIds = new Set()
+  for (const entry of history) {
+    for (const row of entry.items || []) {
+      if (row?.id) closedIds.add(row.id)
+    }
+  }
+  if (!closedIds.size) return budget
+  const kept = items.filter(item => !closedIds.has(item.id))
+  if (kept.length === items.length) return budget
+  return { ...budget, items: kept }
+}
+
+function nextOpenPaydayPaycheck(jobs, months, today, history) {
+  const closedDates = new Set((history || []).map(entry => entry.paycheckDate).filter(Boolean))
+  let payday = sharedPayOnOrAfter(jobs, today, today)
+  for (let i = 0; i < 12; i++) {
+    const row = allJobsOnPayday(jobs, months, payday)
+    if (!historyHasPaycheck(history, row) && !closedDates.has(payday)) return row
+    payday = sharedPayOnOrAfter(jobs, add(payday, 1), today)
+  }
+  return allJobsOnPayday(jobs, months, payday)
+}
+
 /**
  * Open notepad: all jobs last 14 days.
- * After close (or when locked to a job): the next real payday from the calendar.
+ * After that window is closed, stay on the next calendar payday — do not reopen the same 2-week check.
  */
 export function activeChecklistPaycheck(jobs, months, today, budget) {
   if (!jobs?.length) return null
-  const items = Array.isArray(budget?.items) ? budget.items : []
   const history = Array.isArray(budget?.history) ? budget.history : []
+  const items = Array.isArray(budget?.items) ? budget.items : []
+  const fourteen = allCompaniesTwoWeeks(jobs, months, today)
   const onJob = budget?.jobId && budget.jobId !== ALL_COMPANIES_ID
-  const closed = items.length === 0 && history.length > 0
-  if (closed) {
-    const closedDates = new Set(history.map(entry => entry.paycheckDate).filter(Boolean))
-    let payday = sharedPayOnOrAfter(jobs, today)
-    for (let i = 0; i < 8 && closedDates.has(payday); i++) {
-      payday = sharedPayOnOrAfter(jobs, add(payday, 1), today)
-    }
-    return allJobsOnPayday(jobs, months, payday)
+  if (historyHasPaycheck(history, fourteen) || (items.length === 0 && history.length > 0)) {
+    return nextOpenPaydayPaycheck(jobs, months, today, history)
   }
   if (onJob && /^\d{4}-\d{2}-\d{2}$/.test(budget.paycheckDate || '')) {
     return allJobsOnPayday(jobs, months, sharedPayOnOrAfter(jobs, budget.paycheckDate) || budget.paycheckDate)
   }
-  return allCompaniesTwoWeeks(jobs, months, today)
+  return fourteen
 }
 
 export function closePaycheckBudget(budget, { closedAt = localToday(), nextPaycheck = null } = {}) {
