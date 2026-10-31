@@ -76,7 +76,8 @@ function ensureBudgetTables(PDO $db): void {
           starting REAL NOT NULL DEFAULT 2200,
           paycheck_date TEXT NOT NULL DEFAULT \'\',
           paycheck_label TEXT NOT NULL DEFAULT \'\',
-          job_id TEXT NOT NULL DEFAULT \'\'
+          job_id TEXT NOT NULL DEFAULT \'\',
+          earnings_end TEXT NOT NULL DEFAULT \'\'
         );
         CREATE TABLE IF NOT EXISTS budget_items (
           id TEXT PRIMARY KEY,
@@ -106,6 +107,7 @@ function ensureBudgetTables(PDO $db): void {
     if (!isset($cols['paycheck_date'])) $db->exec("ALTER TABLE budget_notes ADD COLUMN paycheck_date TEXT NOT NULL DEFAULT ''");
     if (!isset($cols['paycheck_label'])) $db->exec("ALTER TABLE budget_notes ADD COLUMN paycheck_label TEXT NOT NULL DEFAULT ''");
     if (!isset($cols['job_id'])) $db->exec("ALTER TABLE budget_notes ADD COLUMN job_id TEXT NOT NULL DEFAULT ''");
+    if (!isset($cols['earnings_end'])) $db->exec("ALTER TABLE budget_notes ADD COLUMN earnings_end TEXT NOT NULL DEFAULT ''");
     $itemCols = [];
     foreach ($db->query('PRAGMA table_info(budget_items)') as $row) $itemCols[$row['name']] = true;
     if (!isset($itemCols['category'])) $db->exec("ALTER TABLE budget_items ADD COLUMN category TEXT NOT NULL DEFAULT 'other'");
@@ -142,6 +144,7 @@ function defaultBudgetNote(): array {
         'paycheckDate' => '',
         'paycheckLabel' => '',
         'jobId' => '',
+        'earningsEnd' => '',
         'items' => array_merge($main, $separate),
         'history' => [],
     ];
@@ -201,6 +204,8 @@ function saveBudget(PDO $db, $budget): void {
     if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $paycheckDate)) $paycheckDate = '';
     $paycheckLabel = trim(substr((string)(is_array($budget) ? ($budget['paycheckLabel'] ?? '') : ''), 0, 120));
     $jobId = substr((string)(is_array($budget) ? ($budget['jobId'] ?? '') : ''), 0, 40);
+    $earningsEnd = is_array($budget) ? (string)($budget['earningsEnd'] ?? '') : '';
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $earningsEnd)) $earningsEnd = '';
     $list = is_array($budget) && is_array($budget['items'] ?? null) ? $budget['items'] : [];
     $replaceHistory = is_array($budget) && array_key_exists('history', $budget) && is_array($budget['history']);
     $history = $replaceHistory ? $budget['history'] : null;
@@ -209,8 +214,8 @@ function saveBudget(PDO $db, $budget): void {
     $db->beginTransaction();
     try {
         $db->exec('DELETE FROM budget_notes');
-        $db->prepare('INSERT INTO budget_notes (id, title, starting, paycheck_date, paycheck_label, job_id) VALUES (1, ?, ?, ?, ?, ?)')
-            ->execute([$title, $starting, $paycheckDate, $paycheckLabel, $jobId]);
+        $db->prepare('INSERT INTO budget_notes (id, title, starting, paycheck_date, paycheck_label, job_id, earnings_end) VALUES (1, ?, ?, ?, ?, ?, ?)')
+            ->execute([$title, $starting, $paycheckDate, $paycheckLabel, $jobId, $earningsEnd]);
         $db->exec('DELETE FROM budget_items');
         $seen = [];
         foreach (array_values($list) as $i => $item) {
@@ -310,6 +315,7 @@ function getBudget(PDO $db): array {
         'paycheckDate' => (string)($note['paycheck_date'] ?? ''),
         'paycheckLabel' => (string)($note['paycheck_label'] ?? ''),
         'jobId' => (string)($note['job_id'] ?? ''),
+        'earningsEnd' => (string)($note['earnings_end'] ?? ''),
         'items' => $items,
         'history' => $history,
     ];

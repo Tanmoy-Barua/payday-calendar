@@ -132,7 +132,8 @@ function ensureBudgetTables(db) {
       starting REAL NOT NULL DEFAULT 2200,
       paycheck_date TEXT NOT NULL DEFAULT '',
       paycheck_label TEXT NOT NULL DEFAULT '',
-      job_id TEXT NOT NULL DEFAULT ''
+      job_id TEXT NOT NULL DEFAULT '',
+      earnings_end TEXT NOT NULL DEFAULT ''
     );
     CREATE TABLE IF NOT EXISTS budget_items (
       id TEXT PRIMARY KEY,
@@ -161,6 +162,7 @@ function ensureBudgetTables(db) {
   if (!cols.includes('paycheck_date')) db.exec(`ALTER TABLE budget_notes ADD COLUMN paycheck_date TEXT NOT NULL DEFAULT ''`)
   if (!cols.includes('paycheck_label')) db.exec(`ALTER TABLE budget_notes ADD COLUMN paycheck_label TEXT NOT NULL DEFAULT ''`)
   if (!cols.includes('job_id')) db.exec(`ALTER TABLE budget_notes ADD COLUMN job_id TEXT NOT NULL DEFAULT ''`)
+  if (!cols.includes('earnings_end')) db.exec(`ALTER TABLE budget_notes ADD COLUMN earnings_end TEXT NOT NULL DEFAULT ''`)
   const itemCols = db.prepare('PRAGMA table_info(budget_items)').all().map(row => row.name)
   if (!itemCols.includes('category')) db.exec(`ALTER TABLE budget_items ADD COLUMN category TEXT NOT NULL DEFAULT 'other'`)
   if (!itemCols.includes('debt_id')) db.exec(`ALTER TABLE budget_items ADD COLUMN debt_id TEXT NOT NULL DEFAULT ''`)
@@ -311,6 +313,7 @@ export function getBudget(db) {
     paycheckDate: note.paycheck_date || '',
     paycheckLabel: note.paycheck_label || '',
     jobId: note.job_id || '',
+    earningsEnd: note.earnings_end || '',
     items,
     history,
   }
@@ -367,6 +370,7 @@ export function saveBudget(db, budget) {
   const paycheckDate = /^\d{4}-\d{2}-\d{2}$/.test(budget?.paycheckDate || '') ? budget.paycheckDate : ''
   const paycheckLabel = String(budget?.paycheckLabel || '').trim().slice(0, 120)
   const jobId = String(budget?.jobId || '').slice(0, 40)
+  const earningsEnd = /^\d{4}-\d{2}-\d{2}$/.test(budget?.earningsEnd || '') ? budget.earningsEnd : ''
   const list = Array.isArray(budget?.items) ? budget.items : []
   const replaceHistory = Array.isArray(budget?.history)
   const history = replaceHistory ? budget.history : null
@@ -383,9 +387,9 @@ export function saveBudget(db, budget) {
   try {
     db.exec('DELETE FROM budget_notes')
     db.prepare(`
-      INSERT INTO budget_notes (id, title, starting, paycheck_date, paycheck_label, job_id)
-      VALUES (1, ?, ?, ?, ?, ?)
-    `).run(title, starting, paycheckDate, paycheckLabel, jobId)
+      INSERT INTO budget_notes (id, title, starting, paycheck_date, paycheck_label, job_id, earnings_end)
+      VALUES (1, ?, ?, ?, ?, ?, ?)
+    `).run(title, starting, paycheckDate, paycheckLabel, jobId, earningsEnd)
     db.exec('DELETE FROM budget_items')
     const seen = new Set()
     list.forEach((item, i) => {

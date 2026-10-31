@@ -87,6 +87,7 @@ test('sqlite stores budget checklist paid state', async () => {
     paycheckDate: '2026-10-15',
     paycheckLabel: 'APS-SECURITY COMPANY · Thursday, October 15, 2026',
     jobId: 'company',
+    earningsEnd: '2026-10-25',
     items: seeded.items.map((item, i) => (i === 0 ? { ...item, paid: true, name: 'Rent' } : item)),
     history: [{
       id: 'hist-1',
@@ -106,6 +107,7 @@ test('sqlite stores budget checklist paid state', async () => {
   assert.equal(again.items[0].name, 'Rent')
   assert.equal(again.items[0].amount, 600)
   assert.equal(again.paycheckDate, '2026-10-15')
+  assert.equal(again.earningsEnd, '2026-10-25')
   assert.equal(again.history.length, 1)
   assert.equal(again.history[0].paid[0].amount, 600)
 

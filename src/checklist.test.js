@@ -12,6 +12,8 @@ import {
   runningSteps,
   syncDebtsWithChecklist,
   upcomingPaychecks,
+  nextPaycheckAfter,
+  paycheckSourceDay,
 } from './checklist.js'
 
 test('notepad budget ends at $74 when every main payment is planned', () => {
@@ -146,7 +148,8 @@ test('closing a paycheck keeps history and clears the checklist', () => {
     jobName: 'All companies',
     payday: '2026-10-29',
     amount: 400,
-    label: 'All companies · 2 weeks',
+    label: 'All companies · 2 weeks Oct 12–Oct 25',
+    range: { start: '2026-10-12', end: '2026-10-25', span: 14 },
   }
   const { budget, entry } = closePaycheckBudget(note, { closedAt: '2026-10-16', nextPaycheck: nextPay })
   assert.equal(entry.starting, 2200)
@@ -157,6 +160,35 @@ test('closing a paycheck keeps history and clears the checklist', () => {
   assert.equal(budget.items.length, 0)
   assert.equal(budget.starting, 400)
   assert.equal(budget.paycheckDate, '2026-10-29')
+  assert.equal(budget.earningsEnd, '2026-10-25')
+  assert.equal(paycheckSourceDay(budget, '2026-10-11'), '2026-10-25')
+})
+
+test('the next paycheck is the following 2-week window', () => {
+  const jobs = [{
+    id: 'company',
+    name: 'APS-SECURITY COMPANY',
+    freq: 'biweeklyThu',
+    anchor: '2026-10-15',
+    weekEnd: 'sun',
+  }]
+  const months = {
+    '2026-10': {
+      days: {
+        '2026-10-05': [{ id: 'a', job: 'company', hours: 8, amount: 100 }],
+        '2026-10-20': [{ id: 'b', job: 'company', hours: 8, amount: 80 }],
+      },
+    },
+  }
+  const current = upcomingPaychecks(jobs, months, '2026-10-11')[0]
+  assert.equal(current.range.start, '2026-09-28')
+  assert.equal(current.range.end, '2026-10-11')
+  assert.equal(current.amount, 100)
+  const next = nextPaycheckAfter(jobs, months, current.range.end)
+  assert.equal(next.range.start, '2026-10-12')
+  assert.equal(next.range.end, '2026-10-25')
+  assert.equal(next.amount, 80)
+  assert.equal(paycheckSourceDay({}, '2026-10-11'), '2026-10-11')
 })
 
 test('deleting a history entry leaves the rest of the notepad', () => {

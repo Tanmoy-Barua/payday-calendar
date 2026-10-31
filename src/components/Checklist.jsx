@@ -14,6 +14,7 @@ import {
   runningSteps,
   syncDebtsWithChecklist,
   allCompaniesTwoWeeks,
+  paycheckSourceDay,
 } from '../checklist.js'
 
 function emptyItem(separate = false) {
@@ -213,7 +214,8 @@ export default function Checklist({
       history: Array.isArray(budget.history) ? budget.history : [],
     }
     : defaultBudgetNote()
-  const selected = jobs.length ? allCompaniesTwoWeeks(jobs, months, today) : null
+  const sourceDay = paycheckSourceDay(note, today)
+  const selected = jobs.length ? allCompaniesTwoWeeks(jobs, months, sourceDay) : null
   const starting = selected ? selected.amount : 0
   const [confirmClose, setConfirmClose] = useState(false)
   const mainItems = note.items.filter(item => !item.separate)
@@ -278,7 +280,7 @@ export default function Checklist({
       return
     }
     const linkedNote = selected ? applyPaycheckSource(note, selected) : { ...note, starting }
-    const nextPay = nextPaycheckAfter(jobs, months, linkedNote.paycheckDate || selected?.payday)
+    const nextPay = nextPaycheckAfter(jobs, months, selected?.range?.end || sourceDay)
     const { budget: closed } = closePaycheckBudget(linkedNote, { nextPaycheck: nextPay })
     setConfirmClose(false)
     update(closed)
@@ -321,7 +323,7 @@ export default function Checklist({
               </button>
             </div>
           ) : (
-            <p className="note">This paycheck is closed. Add payments below when you start the next one.</p>
+            <p className="note">This paycheck is closed. The next paycheck is shown here — add its payments below.</p>
           )}
           {canClose && confirmClose ? (
             <div className="paycheck-confirm" role="dialog" aria-labelledby="close-paycheck-title">

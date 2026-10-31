@@ -75,6 +75,7 @@ assert($budgetState['budget']['items'][8]['name'] === 'Prime', 'prime side item 
         'paycheckDate' => '2026-10-15',
         'paycheckLabel' => 'APS-SECURITY COMPANY · Thursday, October 15, 2026',
         'jobId' => 'company',
+        'earningsEnd' => '2026-10-25',
         'items' => array_map(function ($item, $i) {
             if ($i === 0) {
                 $item['paid'] = true;
@@ -100,6 +101,7 @@ assert($status === 200, 'save budget');
 assert($savedBudget['budget']['items'][0]['paid'] === true, 'budget paid kept');
 assert($savedBudget['budget']['items'][0]['name'] === 'Rent', 'budget name kept');
 assert($savedBudget['budget']['paycheckDate'] === '2026-10-15', 'paycheck date kept');
+assert($savedBudget['budget']['earningsEnd'] === '2026-10-25', 'earnings window kept');
 assert(count($savedBudget['budget']['history']) === 1, 'history kept');
 assert($savedBudget['budget']['history'][0]['paid'][0]['amount'] === 600, 'history paid amount kept');
 [$status] = handleRequest('PUT', 'budget', [

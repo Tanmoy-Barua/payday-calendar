@@ -60,6 +60,7 @@ export function defaultBudgetNote() {
     paycheckDate: '',
     paycheckLabel: '',
     jobId: '',
+    earningsEnd: '',
     items: [...main, ...separate],
     history: [],
   }
@@ -271,6 +272,12 @@ export function applyPaycheckSource(budget, paycheck) {
   }
 }
 
+/** Day used to build the 2-week “This paycheck” window. After close, this is the next window’s end. */
+export function paycheckSourceDay(budget, today = localToday()) {
+  const end = String(budget?.earningsEnd || '')
+  return /^\d{4}-\d{2}-\d{2}$/.test(end) ? end : today
+}
+
 export function closePaycheckBudget(budget, { closedAt = localToday(), nextPaycheck = null } = {}) {
   const starting = money2(Math.max(0, Number(budget?.starting) || 0))
   const items = Array.isArray(budget?.items) ? budget.items : []
@@ -297,7 +304,11 @@ export function closePaycheckBudget(budget, { closedAt = localToday(), nextPaych
     items: [],
     history: [entry, ...(Array.isArray(budget?.history) ? budget.history : [])],
   }
-  if (nextPaycheck) next = applyPaycheckSource(next, nextPaycheck)
+  if (nextPaycheck) {
+    next = applyPaycheckSource(next, nextPaycheck)
+    const nextEnd = nextPaycheck.range?.end
+    if (/^\d{4}-\d{2}-\d{2}$/.test(nextEnd || '')) next.earningsEnd = nextEnd
+  }
   return { budget: next, entry }
 }
 
@@ -309,7 +320,8 @@ export function deleteHistoryEntry(budget, entryId) {
   }
 }
 
-export function nextPaycheckAfter(jobs, months, payday) {
+export function nextPaycheckAfter(jobs, months, windowEnd) {
   if (!jobs?.length) return null
-  return allCompaniesTwoWeeks(jobs, months, payday ? add(payday, 1) : localToday())
+  const end = /^\d{4}-\d{2}-\d{2}$/.test(windowEnd || '') ? windowEnd : localToday()
+  return allCompaniesTwoWeeks(jobs, months, add(end, 14))
 }
