@@ -1,5 +1,5 @@
 import { add, fmtShort, localToday, uid } from './dates.js'
-import { payOnOrAfter } from './pay.js'
+import { payOnOrAfter, periodFor } from './pay.js'
 import { totals } from './calc.js'
 
 export const DEFAULT_STARTING = 2200
@@ -269,13 +269,69 @@ export function applyPaycheckSource(budget, paycheck) {
     paycheckLabel: paycheck.label,
     jobId: paycheck.jobId,
     earningsSource: paycheck.jobId === ALL_COMPANIES_ID ? 'all' : 'job',
+    earningsEnd: '',
   }
 }
 
-/** Day used to build the 2-week “This paycheck” window. After close, this is the next window’s end. */
-export function paycheckSourceDay(budget, today = localToday()) {
-  const end = String(budget?.earningsEnd || '')
-  return /^\d{4}-\d{2}-\d{2}$/.test(end) ? end : today
+export function paycheckForJob(job, months, payday) {
+  if (!job || !payday) return null
+  const per = periodFor(job, payday)
+  const amount = money2(totals(months, per.start, per.end, job.id).a)
+  return {
+    jobId: job.id,
+    jobName: job.name,
+    payday: per.payday,
+    amount,
+    range: { start: per.start, end: per.end, payday: per.payday },
+    period: per,
+    isAllCompanies: false,
+    breakdown: amount > 0 ? [{ jobId: job.id, jobName: job.name, amount }] : [],
+    label: `${job.name} · payday ${fmtShort(per.payday)}`,
+  }
+}
+
+export function upcomingJobPaychecks(jobs, months, today, { afterPayday = '', cycles = 1 } = {}) {
+  const after = /^\d{4}-\d{2}-\d{2}$/.test(afterPayday) ? afterPayday : add(today, -1)
+  const list = []
+  for (const job of jobs || []) {
+    let payday = payOnOrAfter(job, add(after, 1))
+    for (let i = 0; i < cycles; i++) {
+      const row = paycheckForJob(job, months, payday)
+      if (row) list.push(row)
+      payday = payOnOrAfter(job, add(payday, 1))
+    }
+  }
+  return list.sort((a, b) => a.payday.localeCompare(b.payday) || a.jobName.localeCompare(b.jobName))
+}
+
+/** Next scheduled job paycheck after `afterPayday`, preferring one that still has earnings. */
+export function nextPaycheckAfter(jobs, months, today, { afterPayday = '', history = [] } = {}) {
+  if (!jobs?.length) return null
+  const closed = new Set((history || []).map(entry => `${entry.jobId}:${entry.paycheckDate}`))
+  const list = upcomingJobPaychecks(jobs, months, today, { afterPayday, cycles: 4 })
+    .filter(row => !closed.has(`${row.jobId}:${row.payday}`))
+  return list.find(row => row.amount > 0) || list[0] || null
+}
+
+/**
+ * Open notepad: all jobs last 14 days.
+ * After close (or when locked to a job): the next real payday from the calendar.
+ */
+export function activeChecklistPaycheck(jobs, months, today, budget) {
+  if (!jobs?.length) return null
+  const items = Array.isArray(budget?.items) ? budget.items : []
+  const history = Array.isArray(budget?.history) ? budget.history : []
+  const onJob = budget?.jobId && budget.jobId !== ALL_COMPANIES_ID
+  const closed = items.length === 0 && history.length > 0
+  if (closed) {
+    return nextPaycheckAfter(jobs, months, today, { afterPayday: add(today, -1), history })
+  }
+  if (onJob && /^\d{4}-\d{2}-\d{2}$/.test(budget.paycheckDate || '')) {
+    const job = jobs.find(row => row.id === budget.jobId)
+    const current = job ? paycheckForJob(job, months, budget.paycheckDate) : null
+    if (current) return current
+  }
+  return allCompaniesTwoWeeks(jobs, months, today)
 }
 
 export function closePaycheckBudget(budget, { closedAt = localToday(), nextPaycheck = null } = {}) {
@@ -304,11 +360,7 @@ export function closePaycheckBudget(budget, { closedAt = localToday(), nextPaych
     items: [],
     history: [entry, ...(Array.isArray(budget?.history) ? budget.history : [])],
   }
-  if (nextPaycheck) {
-    next = applyPaycheckSource(next, nextPaycheck)
-    const nextEnd = nextPaycheck.range?.end
-    if (/^\d{4}-\d{2}-\d{2}$/.test(nextEnd || '')) next.earningsEnd = nextEnd
-  }
+  if (nextPaycheck) next = applyPaycheckSource(next, nextPaycheck)
   return { budget: next, entry }
 }
 
@@ -320,8 +372,3 @@ export function deleteHistoryEntry(budget, entryId) {
   }
 }
 
-export function nextPaycheckAfter(jobs, months, windowEnd) {
-  if (!jobs?.length) return null
-  const end = /^\d{4}-\d{2}-\d{2}$/.test(windowEnd || '') ? windowEnd : localToday()
-  return allCompaniesTwoWeeks(jobs, months, add(end, 14))
-}

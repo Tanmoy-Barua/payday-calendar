@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { fmtShort, localToday, money } from '../dates.js'
+import { add, fmtLong, fmtShort, localToday, money } from '../dates.js'
 import {
   ITEM_CATEGORIES,
   applyPaycheckSource,
@@ -13,8 +13,8 @@ import {
   remainingAfterPaid,
   runningSteps,
   syncDebtsWithChecklist,
-  allCompaniesTwoWeeks,
-  paycheckSourceDay,
+  activeChecklistPaycheck,
+  upcomingJobPaychecks,
 } from '../checklist.js'
 
 function emptyItem(separate = false) {
@@ -214,9 +214,12 @@ export default function Checklist({
       history: Array.isArray(budget.history) ? budget.history : [],
     }
     : defaultBudgetNote()
-  const sourceDay = paycheckSourceDay(note, today)
-  const selected = jobs.length ? allCompaniesTwoWeeks(jobs, months, sourceDay) : null
+  const selected = jobs.length ? activeChecklistPaycheck(jobs, months, today, note) : null
   const starting = selected ? selected.amount : 0
+  const alsoComing = selected && !selected.isAllCompanies
+    ? upcomingJobPaychecks(jobs, months, today, { afterPayday: add(today, -1), cycles: 1 })
+      .filter(row => row.jobId !== selected.jobId || row.payday !== selected.payday)
+    : []
   const [confirmClose, setConfirmClose] = useState(false)
   const mainItems = note.items.filter(item => !item.separate)
   const otherItems = note.items.filter(item => item.separate)
@@ -280,7 +283,10 @@ export default function Checklist({
       return
     }
     const linkedNote = selected ? applyPaycheckSource(note, selected) : { ...note, starting }
-    const nextPay = nextPaycheckAfter(jobs, months, selected?.range?.end || sourceDay)
+    const nextPay = nextPaycheckAfter(jobs, months, today, {
+      afterPayday: selected?.isAllCompanies ? add(today, -1) : selected?.payday,
+      history: note.history || [],
+    })
     const { budget: closed } = closePaycheckBudget(linkedNote, { nextPaycheck: nextPay })
     setConfirmClose(false)
     update(closed)
@@ -298,7 +304,7 @@ export default function Checklist({
         <div className="label">Notepad</div>
         <h2>{note.title || 'Budget Note'}</h2>
         <p className="note">
-          Starting amount is one total from every job in the last 2 weeks. Add the payments for this paycheck below. When you close it, those rows are saved to history and this list starts empty so you can add the next paycheck’s bills.
+          Starting amount is last 2 weeks from every job. Close this notepad to save it. The next paycheck you still get — the same payday as the Calendar — then shows here.
         </p>
 
         <div className="paycheck-source">
@@ -309,11 +315,27 @@ export default function Checklist({
             ) : (
               <p className="note">Add a pay schedule so this total can follow your earnings.</p>
             )}
-            {selected ? (
+            {selected?.isAllCompanies ? (
               <p className="note">
                 All jobs · 2 weeks {fmtShort(selected.range.start)}–{fmtShort(selected.range.end)}
                 {selected.payday ? ` · next payday ${fmtShort(selected.payday)}` : ''}
               </p>
+            ) : selected ? (
+              <p className="note">
+                {selected.jobName}
+                {selected.payday ? ` · payday ${fmtLong(selected.payday)}` : ''}
+                {selected.range ? ` · covers ${fmtShort(selected.range.start)} – ${fmtShort(selected.range.end)}` : ''}
+              </p>
+            ) : null}
+            {alsoComing.length ? (
+              <ul className="starting-breakdown" aria-label="Other upcoming paychecks">
+                {alsoComing.map(row => (
+                  <li key={`${row.jobId}-${row.payday}`}>
+                    <span className="starting-breakdown-name">{row.jobName} · {fmtShort(row.payday)}</span>
+                    <span className="num starting-breakdown-amount">{money(row.amount)}</span>
+                  </li>
+                ))}
+              </ul>
             ) : null}
           </div>
           {canClose ? (
@@ -343,7 +365,11 @@ export default function Checklist({
           <div>
             <div className="label">Starting amount</div>
             <div className="checklist-remain num" aria-live="polite">{money(starting)}</div>
-            <p className="note">All jobs · 2-week total · not editable</p>
+            <p className="note">
+              {selected?.isAllCompanies || !selected
+                ? 'All jobs · 2-week total · not editable'
+                : `This paycheck · not editable`}
+            </p>
             {selected?.breakdown?.length ? (
               <ul className="starting-breakdown" aria-label="Starting amount by company">
                 {selected.breakdown.map(row => (

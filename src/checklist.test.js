@@ -13,7 +13,7 @@ import {
   syncDebtsWithChecklist,
   upcomingPaychecks,
   nextPaycheckAfter,
-  paycheckSourceDay,
+  activeChecklistPaycheck,
 } from './checklist.js'
 
 test('notepad budget ends at $74 when every main payment is planned', () => {
@@ -160,35 +160,54 @@ test('closing a paycheck keeps history and clears the checklist', () => {
   assert.equal(budget.items.length, 0)
   assert.equal(budget.starting, 400)
   assert.equal(budget.paycheckDate, '2026-10-29')
-  assert.equal(budget.earningsEnd, '2026-10-25')
-  assert.equal(paycheckSourceDay(budget, '2026-10-11'), '2026-10-25')
+  assert.equal(budget.earningsEnd, '')
 })
 
-test('the next paycheck is the following 2-week window', () => {
-  const jobs = [{
-    id: 'company',
-    name: 'APS-SECURITY COMPANY',
-    freq: 'biweeklyThu',
-    anchor: '2026-10-15',
-    weekEnd: 'sun',
-  }]
+test('after close, this paycheck is the next calendar payday that still has earnings', () => {
+  const jobs = [
+    {
+      id: 'flex',
+      name: 'Amazon Flex',
+      freq: 'weekly',
+      anchor: '2026-10-01',
+      weekEnd: 'sun',
+    },
+    {
+      id: 'company',
+      name: 'APS-SECURITY COMPANY',
+      freq: 'biweeklyThu',
+      anchor: '2026-10-15',
+      weekEnd: 'sun',
+    },
+  ]
   const months = {
     '2026-10': {
       days: {
-        '2026-10-05': [{ id: 'a', job: 'company', hours: 8, amount: 100 }],
-        '2026-10-20': [{ id: 'b', job: 'company', hours: 8, amount: 80 }],
+        '2026-10-26': [{ id: 'a', job: 'company', hours: 8, amount: 200 }],
+        '2026-10-27': [{ id: 'b', job: 'company', hours: 8, amount: 629.54 }],
       },
     },
   }
-  const current = upcomingPaychecks(jobs, months, '2026-10-11')[0]
-  assert.equal(current.range.start, '2026-09-28')
-  assert.equal(current.range.end, '2026-10-11')
-  assert.equal(current.amount, 100)
-  const next = nextPaycheckAfter(jobs, months, current.range.end)
-  assert.equal(next.range.start, '2026-10-12')
-  assert.equal(next.range.end, '2026-10-25')
-  assert.equal(next.amount, 80)
-  assert.equal(paycheckSourceDay({}, '2026-10-11'), '2026-10-11')
+  const today = '2026-10-31'
+  const next = nextPaycheckAfter(jobs, months, today, { afterPayday: '2026-10-30' })
+  assert.equal(next.jobId, 'company')
+  assert.equal(next.payday, '2026-11-12')
+  assert.equal(next.range.start, '2026-10-26')
+  assert.equal(next.range.end, '2026-11-08')
+  assert.equal(next.amount, 829.54)
+
+  const closedNote = {
+    ...defaultBudgetNote(),
+    items: [],
+    jobId: ALL_COMPANIES_ID,
+    paycheckDate: '2026-11-19',
+    earningsEnd: '2026-11-14',
+    history: [{ id: 'hist-1', jobId: ALL_COMPANIES_ID, paycheckDate: '2026-11-05' }],
+  }
+  const selected = activeChecklistPaycheck(jobs, months, today, closedNote)
+  assert.equal(selected.jobId, 'company')
+  assert.equal(selected.payday, '2026-11-12')
+  assert.equal(selected.amount, 829.54)
 })
 
 test('deleting a history entry leaves the rest of the notepad', () => {
