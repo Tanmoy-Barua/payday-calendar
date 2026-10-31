@@ -343,7 +343,7 @@ export default function Checklist({
           <h3>Mark paid or not paid</h3>
           <p className="note">Choose category Debt to link a row to a debt. Checking paid logs that amount against it.</p>
           <div className="check-list">
-            {mainItems.map(item => (
+            {mainItems.length ? mainItems.map(item => (
               <ItemRow
                 key={item.id}
                 item={item}
@@ -351,7 +351,9 @@ export default function Checklist({
                 onChange={setItem}
                 onRemove={removeItem}
               />
-            ))}
+            )) : (
+              <p className="note">No payments yet. Add the bills for this paycheck.</p>
+            )}
           </div>
           <button className="btn" type="button" onClick={() => addItem(false)}>+ Add payment</button>
         </section>
