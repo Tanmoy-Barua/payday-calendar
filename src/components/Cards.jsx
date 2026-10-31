@@ -38,7 +38,7 @@ export default function Cards({ jobs, months, today, onAddSchedule }) {
         const days = diff(today, next)
         const cd = days === 0 ? 'Payday today' : days === 1 ? 'Tomorrow' : `In ${days} days`
         const after = today > per.end
-        const nextPer = after ? periodFor(j, sharedPayOnOrAfter(jobs, add(next, 1))) : null
+        const nextPer = after ? periodFor(j, sharedPayOnOrAfter(jobs, add(next, 1), today)) : null
         const later = nextPer ? totals(months, nextPer.start, nextPer.end, j.id) : null
         const subtitle = window.mode === 'paycheck'
           ? fmtTodayLine(next)

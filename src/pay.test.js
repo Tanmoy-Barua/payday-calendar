@@ -24,7 +24,20 @@ test('all jobs share the later Thursday payday', () => {
   assert.equal(payOnOrAfter(jobs[1], '2026-10-31'), '2026-11-05')
   assert.equal(payOnOrAfter(jobs[0], '2026-10-31'), '2026-11-12')
   assert.equal(sharedPayOnOrAfter(jobs, '2026-10-31'), '2026-11-12')
-  assert.equal(sharedPayOnOrAfter(jobs, '2026-11-13'), '2026-11-26')
+  assert.equal(sharedPayOnOrAfter(jobs, '2026-11-13', '2026-10-31'), '2026-11-26')
+  assert.equal(sharedPayOnOrAfter(jobs, '2026-09-27', '2026-10-31'), '2026-10-01')
+  assert.equal(sharedPayOnOrAfter(jobs, '2026-10-02', '2026-10-31'), '2026-10-15')
+})
+
+test('offset Flex paydays do not move the company PAY marks', () => {
+  const jobs = [
+    { id: 'company', name: 'APS', freq: 'biweeklyThu', anchor: '2026-10-15', weekEnd: 'sun' },
+    { id: 'flex', name: 'Amazon Flex', freq: 'biweeklyThu', anchor: '2026-10-08', weekEnd: 'sun' },
+  ]
+  assert.equal(payOnOrAfter(jobs[1], '2026-10-31'), '2026-11-05')
+  assert.equal(sharedPayOnOrAfter(jobs, '2026-10-31', '2026-10-31'), '2026-11-12')
+  assert.equal(sharedPayOnOrAfter(jobs, '2026-09-27', '2026-10-31'), '2026-10-01')
+  assert.equal(sharedPayOnOrAfter(jobs, '2026-10-09', '2026-10-31'), '2026-10-15')
 })
 
 test('saturday week end delays the check by 5 days', () => {

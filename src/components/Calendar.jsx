@@ -22,11 +22,11 @@ export default function Calendar({ jobs, months, view, selected, filter, today, 
   const pays = {}
   const scheduled = jobs.filter(j => j.freq !== 'daily')
   if (scheduled.length) {
-    let p = sharedPayOnOrAfter(jobs, start)
+    let p = sharedPayOnOrAfter(jobs, start, today)
     let guard = 0
     while (p && p <= end && guard++ < 60) {
       pays[p] = scheduled
-      p = sharedPayOnOrAfter(jobs, add(p, 1))
+      p = sharedPayOnOrAfter(jobs, add(p, 1), today)
     }
   }
   const fj = jobs.find(j => j.id === filter) || null

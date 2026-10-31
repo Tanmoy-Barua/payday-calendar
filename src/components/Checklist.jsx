@@ -280,8 +280,8 @@ export default function Checklist({
     }
     const linkedNote = selected ? applyPaycheckSource(note, selected) : { ...note, starting }
     const nextPayday = selected?.cardMode === '14'
-      ? sharedPayOnOrAfter(jobs, today)
-      : sharedPayOnOrAfter(jobs, add(selected?.payday || today, 1))
+      ? sharedPayOnOrAfter(jobs, today, today)
+      : sharedPayOnOrAfter(jobs, add(selected?.payday || today, 1), today)
     const nextPay = jobs.length ? allJobsOnPayday(jobs, months, nextPayday) : null
     const { budget: closed } = closePaycheckBudget(linkedNote, { nextPaycheck: nextPay })
     setConfirmClose(false)

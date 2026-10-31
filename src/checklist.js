@@ -355,7 +355,7 @@ export function activeChecklistPaycheck(jobs, months, today, budget) {
     const closedDates = new Set(history.map(entry => entry.paycheckDate).filter(Boolean))
     let payday = sharedPayOnOrAfter(jobs, today)
     for (let i = 0; i < 8 && closedDates.has(payday); i++) {
-      payday = sharedPayOnOrAfter(jobs, add(payday, 1))
+      payday = sharedPayOnOrAfter(jobs, add(payday, 1), today)
     }
     return allJobsOnPayday(jobs, months, payday)
   }

@@ -70,19 +70,34 @@ export function isPayday(job, day) {
   return payOnOrAfter(job, day) === day
 }
 
-/** Payday every job shares — APS biweekly Thursday wins over weekly Flex/Uber Thursdays. */
-export function sharedPayOnOrAfter(jobs, start) {
+function payStep(job) {
+  if (job?.freq === 'weekly') return 7
+  if (job?.freq === 'daily') return 1
+  return 14
+}
+
+/** Company biweekly payday leads; weekly Flex/Uber follow that date. */
+export function paydayLeadJob(jobs, today) {
   const scheduled = (jobs || []).filter(job => job && job.freq !== 'daily')
-  if (!scheduled.length) return start
-  let day = start
-  for (let i = 0; i < 80; i++) {
-    if (scheduled.every(job => isPayday(job, day))) return day
-    const nexts = scheduled.map(job => payOnOrAfter(job, day)).filter(Boolean).sort()
-    if (!nexts.length) return day
-    const next = nexts[0]
-    day = next <= day ? add(day, 1) : next
-  }
-  return scheduled.map(job => payOnOrAfter(job, start)).filter(Boolean).sort().at(-1) || start
+  if (!scheduled.length) return null
+  const biweekly = scheduled.filter(job => job.freq === 'biweekly' || job.freq === 'biweeklyThu')
+  const pool = biweekly.length ? biweekly : scheduled
+  const day = today || pool[0].anchor
+  return [...pool].sort((a, b) => {
+    const pa = payOnOrAfter(a, day) || ''
+    const pb = payOnOrAfter(b, day) || ''
+    if (pa !== pb) return pb.localeCompare(pa)
+    const step = payStep(b) - payStep(a)
+    if (step) return step
+    return String(a.name || '').localeCompare(String(b.name || ''))
+  })[0]
+}
+
+/** Next payday on the shared company cycle (Nov 12, not Flex’s Nov 5). */
+export function sharedPayOnOrAfter(jobs, start, today = start) {
+  const lead = paydayLeadJob(jobs, today)
+  if (!lead) return start
+  return payOnOrAfter(lead, start)
 }
 
 export function payOnOrAfter(job, s) {
