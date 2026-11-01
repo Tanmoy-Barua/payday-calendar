@@ -415,6 +415,9 @@ export function closePaycheckBudget(budget, { closedAt = localToday(), nextPaych
   }
   const kept = items.map(item => {
     const row = normalizeBudgetItem(item)
+    if (row.separate) {
+      return { ...row, paid: false, amount: '', debtPaymentId: '' }
+    }
     if (!row.paid) return row
     return { ...row, paid: false, debtPaymentId: '' }
   })

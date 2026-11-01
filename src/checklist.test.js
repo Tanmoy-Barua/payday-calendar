@@ -185,6 +185,53 @@ test('closing a paycheck keeps history and resets only paid rows', () => {
   assert.equal(budget.earningsEnd, '')
 })
 
+test('closing a paycheck keeps card rows and clears only their amounts', () => {
+  const note = {
+    ...defaultBudgetNote(),
+    items: [
+      { id: 'pay-1', name: 'Rent', amount: 1060, paid: true, separate: false, category: 'other' },
+      { id: 'pay-2', name: 'Ladu', amount: 600, paid: false, separate: false, category: 'other' },
+      {
+        id: 'sep-prime',
+        name: 'Chase Prime Visa',
+        amount: 50,
+        paid: true,
+        separate: true,
+        category: 'debt',
+        debtId: 'prime',
+        dueDate: '2026-11-03',
+      },
+      {
+        id: 'sep-credit',
+        name: 'Credit One Bank',
+        amount: 50,
+        paid: false,
+        separate: true,
+        category: 'debt',
+        debtId: 'credit',
+        dueDate: '2026-11-11',
+      },
+    ],
+  }
+  const { budget, entry } = closePaycheckBudget(note, { closedAt: '2026-10-31' })
+  assert.equal(entry.paid.find(row => row.name === 'Chase Prime Visa')?.amount, 50)
+  const prime = budget.items.find(row => row.id === 'sep-prime')
+  const credit = budget.items.find(row => row.id === 'sep-credit')
+  const ladu = budget.items.find(row => row.id === 'pay-2')
+  assert.equal(prime.name, 'Chase Prime Visa')
+  assert.equal(prime.dueDate, '2026-11-03')
+  assert.equal(prime.category, 'debt')
+  assert.equal(prime.amount, '')
+  assert.equal(prime.paid, false)
+  assert.equal(credit.name, 'Credit One Bank')
+  assert.equal(credit.dueDate, '2026-11-11')
+  assert.equal(credit.amount, '')
+  assert.equal(credit.paid, false)
+  assert.equal(ladu.name, 'Ladu')
+  assert.equal(ladu.amount, 600)
+  assert.equal(ladu.paid, false)
+})
+
 test('after close, this paycheck is the next calendar payday that still has earnings', () => {
   const jobs = [
     {
