@@ -233,8 +233,13 @@ form{display:grid;gap:10px}
 .check-remove{min-width:36px;padding-inline:8px;margin:0;align-self:center}
 .check-debt-hint{grid-column:2 / -1;margin:0}
 .check-math{list-style:none;margin:0;padding:0;display:grid;gap:8px}
-.check-math li{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid var(--line)}
+.check-math li{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid var(--line);align-items:start}
+.check-math li > span:first-child{display:grid;gap:2px;min-width:0}
 .check-math li.is-paid{color:var(--accent)}
+.check-math-due{font-size:13px;font-weight:600;color:var(--accent)}
+.check-math-due.is-today{color:var(--pay)}
+.check-math-due.is-late{color:var(--danger)}
+.check-math-due.is-missing{font-weight:500;color:var(--muted)}
 .paycheck-source{display:grid;gap:10px;margin:12px 0 4px;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
 .paycheck-one-total{margin:4px 0 0;font-family:var(--display);font-weight:800;font-size:clamp(22px,4vw,28px);letter-spacing:-.02em;line-height:1.1}
 .paycheck-amount-field,.starting-amount-field{display:grid;gap:4px;margin:0;min-width:0}

@@ -243,7 +243,7 @@ export default function Checklist({
   const otherItems = note.items.filter(item => item.separate)
   const left = remainingAfterPaid(starting, note.items)
   const planned = plannedRemaining(starting, note.items)
-  const { steps } = runningSteps(starting, note.items)
+  const { steps } = runningSteps(starting, note.items, today)
   const paidCount = mainItems.filter(item => item.paid).length
   const sidePaidCount = otherItems.filter(item => item.paid).length
   const history = note.history || []
@@ -462,12 +462,20 @@ export default function Checklist({
                   − {money(step.amount)}
                   {step.name ? ` · ${step.name}` : ''}
                   {step.paid ? ' · paid' : ' · not paid'}
+                  {step.dueLabel ? (
+                    <span className={`check-math-due${step.dueDays < 0 ? ' is-late' : ''}${step.dueDays === 0 ? ' is-today' : ''}`}>
+                      {step.dueLabel}
+                      {step.dueDate ? ` · ${fmtShort(step.dueDate)}` : ''}
+                    </span>
+                  ) : (
+                    <span className="check-math-due is-missing">No due date</span>
+                  )}
                 </span>
                 <span className="num">{money(step.after)}</span>
               </li>
             ))}
           </ol>
-          <p className="note">Checked main and card items count toward “Remaining now”. Unchecked main items stay in the plan leftover.</p>
+          <p className="note">Each payment uses its due date so you can see how many days you have. Checked main and card items count toward “Remaining now”. Unchecked main items stay in the plan leftover.</p>
         </section>
       </div>
 
