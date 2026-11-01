@@ -116,7 +116,7 @@ export function plannedRemaining(starting, items) {
   return left
 }
 
-export function runningSteps(starting, items) {
+export function runningSteps(starting, items, today = localToday()) {
   const start = money2(Math.max(0, Number(starting) || 0))
   let left = start
   const steps = []
@@ -126,6 +126,8 @@ export function runningSteps(starting, items) {
     if (amount == null) continue
     const before = left
     left = money2(left - amount)
+    const dueDate = /^\d{4}-\d{2}-\d{2}$/.test(item.dueDate || '') ? item.dueDate : ''
+    const dueDays = dueInDays(dueDate, today)
     steps.push({
       id: item.id,
       name: item.name || '',
@@ -133,6 +135,9 @@ export function runningSteps(starting, items) {
       before,
       after: left,
       paid: !!item.paid,
+      dueDate,
+      dueDays,
+      dueLabel: dueLeftLabel(dueDays),
     })
   }
   return { starting: start, steps, remaining: left }

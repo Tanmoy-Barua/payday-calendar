@@ -54,6 +54,21 @@ test('running steps match the corrected notepad chain', () => {
   assert.equal(remaining, 74)
 })
 
+test('running math shows days left from each payment due date', () => {
+  const items = [
+    { id: 'rent', name: 'RENT 1/2', amount: 1060, paid: false, separate: false, dueDate: '2026-11-12' },
+    { id: 'ladu', name: 'Ladu', amount: 600, paid: false, separate: false, dueDate: '2026-11-23' },
+    { id: 'klarna', name: 'KLARNA-GLASS', amount: 60.79, paid: false, separate: false, dueDate: '' },
+  ]
+  const { steps } = runningSteps(838.59, items, '2026-10-31')
+  assert.equal(steps[0].dueDays, 12)
+  assert.equal(steps[0].dueLabel, '12 days left')
+  assert.equal(steps[1].dueDays, 23)
+  assert.equal(steps[1].dueLabel, '23 days left')
+  assert.equal(steps[2].dueDays, null)
+  assert.equal(steps[2].dueLabel, '')
+})
+
 test('starting amount defaults to all companies over 2 weeks', () => {
   const jobs = [
     {
