@@ -151,10 +151,12 @@ test('checklist earnings follow Last 14 days when the schedule asks for it', () 
   assert.equal(checks[0].amount, 130)
 })
 
-test('closing a paycheck keeps history and clears the checklist', () => {
+test('closing a paycheck keeps history and resets only paid rows', () => {
   const note = defaultBudgetNote()
   note.items[0].paid = true
   note.items[0].name = 'Rent'
+  note.items[1].paid = false
+  note.items[1].name = 'Ladu'
   note.paycheckDate = '2026-10-15'
   note.paycheckLabel = 'All companies · 2 weeks'
   note.jobId = ALL_COMPANIES_ID
@@ -172,7 +174,12 @@ test('closing a paycheck keeps history and clears the checklist', () => {
   assert.equal(entry.paid[0].name, 'Rent')
   assert.equal(entry.paid[0].amount, 600)
   assert.equal(budget.history.length, 1)
-  assert.equal(budget.items.length, 0)
+  assert.equal(budget.items.length, note.items.length)
+  assert.equal(budget.items[0].name, 'Rent')
+  assert.equal(budget.items[0].paid, false)
+  assert.equal(budget.items[1].paid, false)
+  assert.equal(budget.items[1].name, 'Ladu')
+  assert.equal(budget.items[1].amount, note.items[1].amount)
   assert.equal(budget.starting, 2200)
   assert.equal(budget.paycheckDate, '2026-10-29')
   assert.equal(budget.earningsEnd, '')

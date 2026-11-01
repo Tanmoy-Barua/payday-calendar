@@ -413,9 +413,14 @@ export function closePaycheckBudget(budget, { closedAt = localToday(), nextPaych
     }),
     paid: paidBreakdown(items),
   }
+  const kept = items.map(item => {
+    const row = normalizeBudgetItem(item)
+    if (!row.paid) return row
+    return { ...row, paid: false, debtPaymentId: '' }
+  })
   let next = {
     ...budget,
-    items: [],
+    items: kept,
     history: [entry, ...(Array.isArray(budget?.history) ? budget.history : [])],
   }
   if (nextPaycheck) next = applyPaycheckSource(next, nextPaycheck)

@@ -379,7 +379,7 @@ export default function Checklist({
             <div className="paycheck-confirm" role="dialog" aria-labelledby="close-paycheck-title">
               <p id="close-paycheck-title" className="paycheck-confirm-title">Close this paycheck now?</p>
               <p className="note">
-                Yes saves it to history and clears the pay checklist so you add rows for the next paycheck. Later leaves everything as it is.
+                Yes saves it to history and unchecks paid rows. Unpaid bills stay as they are. Later leaves everything as it is.
               </p>
               <div className="paycheck-confirm-actions">
                 <button className="btn primary" type="button" onClick={confirmCloseNow}>Yes, close now</button>
