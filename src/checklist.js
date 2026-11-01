@@ -278,7 +278,6 @@ export function applyPaycheckSource(budget, paycheck) {
   if (!paycheck) return budget
   return {
     ...budget,
-    starting: money2(paycheck.amount),
     paycheckDate: paycheck.payday,
     paycheckLabel: paycheck.label,
     jobId: paycheck.jobId,

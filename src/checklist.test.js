@@ -107,12 +107,24 @@ test('starting amount defaults to all companies over 2 weeks', () => {
     { jobId: 'uber', jobName: 'Uber', amount: 40 },
   ])
   const note = applyPaycheckSource(defaultBudgetNote(), checks[0])
-  assert.equal(note.starting, 415.04)
+  assert.equal(note.starting, 2200)
   assert.equal(note.jobId, ALL_COMPANIES_ID)
   assert.equal(note.earningsSource, 'all')
   assert.match(note.paycheckLabel, /All companies/)
-  const again = applyPaycheckSource({ ...note, starting: 2200 }, checks[0])
-  assert.equal(again.starting, 415.04)
+  const again = applyPaycheckSource({ ...note, starting: 1935.94 }, checks[0])
+  assert.equal(again.starting, 1935.94)
+})
+
+test('typed paycheck amount is not replaced by calendar totals', () => {
+  const paycheck = {
+    jobId: ALL_COMPANIES_ID,
+    payday: '2026-11-12',
+    amount: 0,
+    label: 'All companies · 2 weeks Oct 18–Oct 31',
+  }
+  const note = applyPaycheckSource({ ...defaultBudgetNote(), starting: '1935.94' }, paycheck)
+  assert.equal(note.starting, '1935.94')
+  assert.equal(note.paycheckDate, '2026-11-12')
 })
 
 test('checklist earnings follow Last 14 days when the schedule asks for it', () => {
@@ -161,7 +173,7 @@ test('closing a paycheck keeps history and clears the checklist', () => {
   assert.equal(entry.paid[0].amount, 600)
   assert.equal(budget.history.length, 1)
   assert.equal(budget.items.length, 0)
-  assert.equal(budget.starting, 400)
+  assert.equal(budget.starting, 2200)
   assert.equal(budget.paycheckDate, '2026-10-29')
   assert.equal(budget.earningsEnd, '')
 })

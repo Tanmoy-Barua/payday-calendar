@@ -237,6 +237,19 @@ form{display:grid;gap:10px}
 .check-math li.is-paid{color:var(--accent)}
 .paycheck-source{display:grid;gap:10px;margin:12px 0 4px;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
 .paycheck-one-total{margin:4px 0 0;font-family:var(--display);font-weight:800;font-size:clamp(22px,4vw,28px);letter-spacing:-.02em;line-height:1.1}
+.paycheck-amount-field,.starting-amount-field{display:grid;gap:4px;margin:0;min-width:0}
+.paycheck-amount-wrap{
+  display:flex;align-items:center;gap:4px;max-width:16rem;min-width:0;
+  border:1px solid var(--line);border-radius:10px;padding:4px 10px;background:var(--bg);
+}
+.paycheck-amount-prefix{font-family:var(--display);font-weight:800;font-size:clamp(22px,4vw,28px);color:var(--muted)}
+.paycheck-amount-prefix.is-lg{font-size:clamp(28px,5vw,40px);font-weight:700}
+.paycheck-amount-input,.starting-amount-input{
+  width:100%;min-width:0;border:0;border-radius:0;padding:4px 0;background:transparent;
+  font-family:var(--display);letter-spacing:-.02em;line-height:1.1;
+}
+.paycheck-amount-input{margin:0;font-weight:800;font-size:clamp(22px,4vw,28px)}
+.starting-amount-input{font-weight:700;font-size:clamp(28px,5vw,40px)}
 .paycheck-actions{display:flex;flex-wrap:wrap;gap:8px}
 .paycheck-confirm{
   display:grid;gap:8px;padding:12px;border:1px solid var(--line);border-radius:12px;
@@ -300,7 +313,7 @@ select{text-overflow:ellipsis}
 }
 @media (pointer:coarse){
   .btn{min-height:44px}
-  .field input,.field select,.caltools select,.check-name,.check-amount,.check-due-date,.check-category select,.check-debt select{font-size:16px;min-height:44px}
+  .field input,.field select,.caltools select,.check-name,.check-amount,.check-due-date,.check-category select,.check-debt select,.paycheck-amount-input,.starting-amount-input{font-size:16px;min-height:44px}
   .day:hover{border-color:var(--line)}
   .pager a{min-height:44px;display:grid;place-items:center}
 }

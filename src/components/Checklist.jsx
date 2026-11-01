@@ -237,7 +237,7 @@ export default function Checklist({
     }
     : defaultBudgetNote()
   const selected = jobs.length ? activeChecklistPaycheck(jobs, months, today, note) : null
-  const starting = selected ? selected.amount : 0
+  const starting = note.starting === '' || note.starting == null ? '' : note.starting
   const [confirmClose, setConfirmClose] = useState(false)
   const mainItems = note.items.filter(item => !item.separate)
   const otherItems = note.items.filter(item => item.separate)
@@ -259,6 +259,15 @@ export default function Checklist({
     onSave(next)
   }
 
+  function setStarting(raw) {
+    if (raw === '') {
+      update({ ...note, starting: '' })
+      return
+    }
+    if (!/^\d*\.?\d*$/.test(raw)) return
+    update({ ...note, starting: raw })
+  }
+
   function setItem(nextItem) {
     commitItems(note.items.map(item => (item.id === nextItem.id ? nextItem : item)))
   }
@@ -276,7 +285,6 @@ export default function Checklist({
     const linked =
       note.jobId === selected.jobId
       && note.paycheckDate === selected.payday
-      && Number(note.starting) === Number(selected.amount)
       && note.paycheckLabel === selected.label
     if (linked) return
     update({
@@ -300,7 +308,7 @@ export default function Checklist({
       setConfirmClose(false)
       return
     }
-    const linkedNote = selected ? applyPaycheckSource(note, selected) : { ...note, starting }
+    const linkedNote = selected ? { ...applyPaycheckSource(note, selected), starting } : { ...note, starting }
     const nextPayday = selected?.cardMode === '14'
       ? sharedPayOnOrAfter(jobs, today, today)
       : sharedPayOnOrAfter(jobs, add(selected?.payday || today, 1), today)
@@ -322,31 +330,41 @@ export default function Checklist({
         <div className="label">Notepad</div>
         <h2>{note.title || 'Budget Note'}</h2>
         <p className="note">
-          Starting amount is last 2 weeks from every job. Close this notepad to save it. The next paycheck you still get — the same payday as the Calendar — then shows here.
+          Type the amount of this paycheck yourself. Close this notepad to save it, then type the next check when it comes in.
         </p>
 
         <div className="paycheck-source">
           <div>
-            <div className="label">This paycheck</div>
-            {selected ? (
-              <p className="paycheck-one-total num">{money(selected.amount)}</p>
-            ) : (
-              <p className="note">Add a pay schedule so this total can follow your earnings.</p>
-            )}
+            <label className="field paycheck-amount-field">
+              <span className="label">This paycheck</span>
+              <span className="paycheck-amount-wrap">
+                <span className="paycheck-amount-prefix" aria-hidden="true">$</span>
+                <input
+                  className="paycheck-amount-input num"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  inputMode="decimal"
+                  placeholder="0.00"
+                  aria-label="This paycheck amount"
+                  value={starting}
+                  onChange={ev => setStarting(ev.target.value)}
+                />
+              </span>
+            </label>
             {selected?.isAllCompanies && selected.cardMode === '14' ? (
               <p className="note">
-                All jobs · 2 weeks {fmtShort(selected.range.start)}–{fmtShort(selected.range.end)}
-                {selected.payday ? ` · payday ${fmtLong(selected.payday)}` : ''}
+                Payday {selected.payday ? fmtLong(selected.payday) : ''}
+                {selected.range ? ` · ${fmtShort(selected.range.start)}–${fmtShort(selected.range.end)}` : ''}
               </p>
             ) : selected ? (
               <p className="note">
-                All jobs · payday {fmtLong(selected.payday)}
-                {selected.range ? ` · covers ${fmtShort(selected.range.start)} – ${fmtShort(selected.range.end)}` : ''}
+                Payday {fmtLong(selected.payday)}
+                {selected.range ? ` · ${fmtShort(selected.range.start)} – ${fmtShort(selected.range.end)}` : ''}
               </p>
-            ) : null}
-            {selected?.estimated ? (
-              <p className="note">Based on your last paycheck for this cycle. Updates when hours are logged in this period.</p>
-            ) : null}
+            ) : (
+              <p className="note">Enter the amount on the check. Dates follow the calendar when a job is set up.</p>
+            )}
           </div>
           {canClose ? (
             <div className="paycheck-actions">
@@ -373,25 +391,24 @@ export default function Checklist({
 
         <div className="checklist-stats">
           <div>
-            <div className="label">Starting amount</div>
-            <div className="checklist-remain num" aria-live="polite">{money(starting)}</div>
-            <p className="note">
-              {selected?.cardMode === 'paycheck' || (selected && !selected.isAllCompanies)
-                ? selected?.estimated
-                  ? 'All jobs · last paycheck for this cycle · not editable'
-                  : 'This paycheck · not editable'
-                : 'All jobs · 2-week total · not editable'}
-            </p>
-            {selected?.breakdown?.length ? (
-              <ul className="starting-breakdown" aria-label="Starting amount by company">
-                {selected.breakdown.map(row => (
-                  <li key={row.jobId}>
-                    <span className="starting-breakdown-name">{row.jobName}</span>
-                    <span className="num starting-breakdown-amount">{money(row.amount)}</span>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
+            <label className="field starting-amount-field">
+              <span className="label">Starting amount</span>
+              <span className="paycheck-amount-wrap">
+                <span className="paycheck-amount-prefix is-lg" aria-hidden="true">$</span>
+                <input
+                  className="starting-amount-input num"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  inputMode="decimal"
+                  placeholder="0.00"
+                  aria-label="Starting amount"
+                  value={starting}
+                  onChange={ev => setStarting(ev.target.value)}
+                />
+              </span>
+            </label>
+            <p className="note">Type the same paycheck amount. Remaining now uses this number.</p>
           </div>
           <div>
             <div className="label">Remaining now</div>
