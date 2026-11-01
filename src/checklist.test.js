@@ -216,6 +216,75 @@ test('after close, this paycheck is the next calendar payday that still has earn
   assert.equal(open.payday, '2026-11-12')
 })
 
+test('a future paycheck with no hours yet uses last cycle pay for that period', () => {
+  const jobs = [
+    {
+      id: 'flex',
+      name: 'Amazon Flex',
+      freq: 'biweeklyThu',
+      anchor: '2026-10-15',
+      weekEnd: 'sun',
+    },
+    {
+      id: 'company',
+      name: 'APS-SECURITY COMPANY',
+      freq: 'biweeklyThu',
+      anchor: '2026-10-15',
+      weekEnd: 'sun',
+    },
+    {
+      id: 'uber',
+      name: 'Uber',
+      freq: 'biweeklyThu',
+      anchor: '2026-10-15',
+      weekEnd: 'sun',
+    },
+  ]
+  const months = {
+    '2026-10': {
+      days: {
+        '2026-10-26': [{ id: 'a', job: 'company', hours: 8, amount: 1500 }],
+        '2026-10-29': [{ id: 'b', job: 'flex', hours: 4, amount: 200 }],
+        '2026-10-30': [{ id: 'c', job: 'uber', hours: 5, amount: 235.94 }],
+      },
+    },
+  }
+  const today = '2026-10-31'
+  const current = allJobsOnPayday(jobs, months, '2026-11-12', today)
+  assert.equal(current.payday, '2026-11-12')
+  assert.equal(current.range.start, '2026-10-26')
+  assert.equal(current.range.end, '2026-11-08')
+  assert.equal(current.estimated, false)
+  assert.equal(current.amount, 1935.94)
+  assert.equal(current.breakdown.find(row => row.jobId === 'company').amount, 1500)
+  assert.equal(current.breakdown.find(row => row.jobId === 'flex').amount, 200)
+  assert.equal(current.breakdown.find(row => row.jobId === 'uber').amount, 235.94)
+
+  const future = allJobsOnPayday(jobs, months, '2026-11-26', today)
+  assert.equal(future.payday, '2026-11-26')
+  assert.equal(future.range.start, '2026-11-09')
+  assert.equal(future.range.end, '2026-11-22')
+  assert.equal(future.estimated, true)
+  assert.equal(future.amount, 1935.94)
+  assert.equal(future.breakdown.find(row => row.jobId === 'company').amount, 1500)
+  assert.equal(future.breakdown.find(row => row.jobId === 'flex').amount, 200)
+  assert.equal(future.breakdown.find(row => row.jobId === 'uber').amount, 235.94)
+
+  const logged = {
+    ...months,
+    '2026-11': {
+      days: {
+        '2026-11-10': [{ id: 'd', job: 'company', hours: 8, amount: 80 }],
+      },
+    },
+  }
+  const live = allJobsOnPayday(jobs, logged, '2026-11-26', today)
+  assert.equal(live.estimated, true)
+  assert.equal(live.breakdown.find(row => row.jobId === 'company').amount, 80)
+  assert.equal(live.breakdown.find(row => row.jobId === 'company').estimated, false)
+  assert.equal(live.amount, 515.94)
+})
+
 test('due dates count days left from today', () => {
   assert.equal(dueInDays('', '2026-10-31'), null)
   assert.equal(dueInDays('2026-10-31', '2026-10-31'), 0)

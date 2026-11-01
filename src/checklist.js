@@ -1,5 +1,5 @@
 import { add, diff, fmtShort, localToday, uid } from './dates.js'
-import { payOnOrAfter, periodFor, sharedPayOnOrAfter } from './pay.js'
+import { payBefore, payOnOrAfter, periodFor, sharedPayOnOrAfter } from './pay.js'
 import { totals } from './calc.js'
 
 export const DEFAULT_STARTING = 2200
@@ -287,16 +287,41 @@ export function applyPaycheckSource(budget, paycheck) {
   }
 }
 
-export function allJobsOnPayday(jobs, months, payday) {
+function amountForJobPayday(job, months, payday, today) {
+  const per = periodFor(job, payday)
+  const current = totals(months, per.start, per.end, job.id)
+  if (current.a > 0 || current.h > 0) {
+    return { amount: money2(current.a), estimated: false, range: per }
+  }
+  const periodOpen = !today || per.end >= today
+  if (!periodOpen) {
+    return { amount: 0, estimated: false, range: per }
+  }
+  const steps = job.freq === 'daily' ? 14 : 8
+  let prevPayday = payBefore(job, payday)
+  for (let i = 0; i < steps && prevPayday; i++) {
+    const prev = periodFor(job, prevPayday)
+    const sum = totals(months, prev.start, prev.end, job.id)
+    if (sum.a > 0 || sum.h > 0) {
+      return { amount: money2(sum.a), estimated: true, range: per }
+    }
+    const nextPrev = payBefore(job, prevPayday)
+    if (!nextPrev || nextPrev >= prevPayday) break
+    prevPayday = nextPrev
+  }
+  return { amount: 0, estimated: false, range: per }
+}
+
+export function allJobsOnPayday(jobs, months, payday, today = payday) {
   const list = jobs || []
   const breakdown = list.map(job => {
-    const per = periodFor(job, payday)
-    const amount = money2(totals(months, per.start, per.end, job.id).a)
+    const part = amountForJobPayday(job, months, payday, today)
     return {
       jobId: job.id,
       jobName: job.name,
-      amount,
-      range: { start: per.start, end: per.end, payday: per.payday },
+      amount: part.amount,
+      estimated: part.estimated,
+      range: { start: part.range.start, end: part.range.end, payday: part.range.payday },
     }
   }).sort((a, b) => b.amount - a.amount || a.jobName.localeCompare(b.jobName))
   const amount = money2(breakdown.reduce((sum, row) => sum + row.amount, 0))
@@ -307,6 +332,7 @@ export function allJobsOnPayday(jobs, months, payday) {
     jobName: 'All companies',
     payday,
     amount,
+    estimated: breakdown.some(row => row.estimated && row.amount > 0),
     range: { start: starts[0] || payday, end: ends[ends.length - 1] || payday, payday },
     period: { start: starts[0] || payday, end: ends[ends.length - 1] || payday, payday },
     cardMode: 'paycheck',
@@ -372,10 +398,10 @@ export function activeChecklistPaycheck(jobs, months, today, budget) {
     for (let i = 0; i < 8 && closedDates.has(payday); i++) {
       payday = sharedPayOnOrAfter(jobs, add(payday, 1), today)
     }
-    return allJobsOnPayday(jobs, months, payday)
+    return allJobsOnPayday(jobs, months, payday, today)
   }
   if (onJob && /^\d{4}-\d{2}-\d{2}$/.test(budget.paycheckDate || '')) {
-    return allJobsOnPayday(jobs, months, sharedPayOnOrAfter(jobs, budget.paycheckDate) || budget.paycheckDate)
+    return allJobsOnPayday(jobs, months, sharedPayOnOrAfter(jobs, budget.paycheckDate) || budget.paycheckDate, today)
   }
   return allCompaniesTwoWeeks(jobs, months, today)
 }

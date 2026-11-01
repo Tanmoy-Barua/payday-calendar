@@ -304,7 +304,7 @@ export default function Checklist({
     const nextPayday = selected?.cardMode === '14'
       ? sharedPayOnOrAfter(jobs, today, today)
       : sharedPayOnOrAfter(jobs, add(selected?.payday || today, 1), today)
-    const nextPay = jobs.length ? allJobsOnPayday(jobs, months, nextPayday) : null
+    const nextPay = jobs.length ? allJobsOnPayday(jobs, months, nextPayday, today) : null
     const { budget: closed } = closePaycheckBudget(linkedNote, { nextPaycheck: nextPay })
     setConfirmClose(false)
     update(closed)
@@ -344,6 +344,9 @@ export default function Checklist({
                 {selected.range ? ` · covers ${fmtShort(selected.range.start)} – ${fmtShort(selected.range.end)}` : ''}
               </p>
             ) : null}
+            {selected?.estimated ? (
+              <p className="note">Based on your last paycheck for this cycle. Updates when hours are logged in this period.</p>
+            ) : null}
           </div>
           {canClose ? (
             <div className="paycheck-actions">
@@ -373,9 +376,11 @@ export default function Checklist({
             <div className="label">Starting amount</div>
             <div className="checklist-remain num" aria-live="polite">{money(starting)}</div>
             <p className="note">
-              {selected?.isAllCompanies || !selected
-                ? 'All jobs · 2-week total · not editable'
-                : `This paycheck · not editable`}
+              {selected?.cardMode === 'paycheck' || (selected && !selected.isAllCompanies)
+                ? selected?.estimated
+                  ? 'All jobs · last paycheck for this cycle · not editable'
+                  : 'This paycheck · not editable'
+                : 'All jobs · 2-week total · not editable'}
             </p>
             {selected?.breakdown?.length ? (
               <ul className="starting-breakdown" aria-label="Starting amount by company">
