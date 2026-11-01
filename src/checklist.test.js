@@ -279,10 +279,60 @@ test('a future paycheck with no hours yet uses last cycle pay for that period', 
     },
   }
   const live = allJobsOnPayday(jobs, logged, '2026-11-26', today)
-  assert.equal(live.estimated, true)
+  assert.equal(live.estimated, false)
   assert.equal(live.breakdown.find(row => row.jobId === 'company').amount, 80)
-  assert.equal(live.breakdown.find(row => row.jobId === 'company').estimated, false)
-  assert.equal(live.amount, 515.94)
+  assert.equal(live.breakdown.find(row => row.jobId === 'flex').amount, 0)
+  assert.equal(live.amount, 80)
+})
+
+test('Flex and Uber use the same paycheck period as the company', () => {
+  const jobs = [
+    {
+      id: 'company',
+      name: 'APS-SECURITY COMPANY',
+      freq: 'biweeklyThu',
+      anchor: '2026-10-15',
+      weekEnd: 'sun',
+    },
+    {
+      id: 'flex',
+      name: 'Amazon Flex',
+      freq: 'weekly',
+      anchor: '2026-10-01',
+    },
+    {
+      id: 'uber',
+      name: 'Uber',
+      freq: 'daily',
+      anchor: '2026-10-01',
+    },
+  ]
+  const months = {
+    '2026-10': {
+      days: {
+        '2026-10-26': [{ id: 'a', job: 'company', hours: 8, amount: 829.54 }],
+        '2026-10-27': [{ id: 'b', job: 'flex', hours: 3, amount: 247.5 }],
+        '2026-10-28': [{ id: 'c', job: 'uber', hours: 4, amount: 80 }],
+      },
+    },
+  }
+  const today = '2026-10-31'
+  const current = allJobsOnPayday(jobs, months, '2026-11-12', today)
+  assert.equal(current.range.start, '2026-10-26')
+  assert.equal(current.range.end, '2026-11-08')
+  assert.equal(current.estimated, false)
+  assert.equal(current.breakdown.find(row => row.jobId === 'flex').amount, 247.5)
+  assert.equal(current.breakdown.find(row => row.jobId === 'uber').amount, 80)
+  assert.equal(current.amount, 1157.04)
+
+  const future = allJobsOnPayday(jobs, months, '2026-11-26', today)
+  assert.equal(future.range.start, '2026-11-09')
+  assert.equal(future.range.end, '2026-11-22')
+  assert.equal(future.estimated, true)
+  assert.equal(future.breakdown.find(row => row.jobId === 'company').amount, 829.54)
+  assert.equal(future.breakdown.find(row => row.jobId === 'flex').amount, 247.5)
+  assert.equal(future.breakdown.find(row => row.jobId === 'uber').amount, 80)
+  assert.equal(future.amount, 1157.04)
 })
 
 test('due dates count days left from today', () => {

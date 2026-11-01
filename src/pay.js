@@ -100,6 +100,19 @@ export function sharedPayOnOrAfter(jobs, start, today = start) {
   return payOnOrAfter(lead, start)
 }
 
+/** Work window every job uses for the shared payday (APS Nov 9–Nov 22, not Flex’s week). */
+export function sharedPeriodFor(jobs, payday, today = payday) {
+  const lead = paydayLeadJob(jobs, today)
+  if (!lead || !payday) return { start: payday || '', end: payday || '', payday: payday || '' }
+  return periodFor(lead, payday)
+}
+
+export function sharedPayBefore(jobs, payday, today = payday) {
+  const lead = paydayLeadJob(jobs, today)
+  if (!lead || !payday) return payday
+  return payBefore(lead, payday)
+}
+
 export function payOnOrAfter(job, s) {
   const a = job.anchor
   if (job.freq === 'daily') return s

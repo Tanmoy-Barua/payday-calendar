@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { payOnOrAfter, payBefore, periodFor, lagOf, listPastPaychecks, cardTotalRange, normalizeCardTotal, sharedPayOnOrAfter } from './pay.js'
+import { payOnOrAfter, payBefore, periodFor, lagOf, listPastPaychecks, cardTotalRange, normalizeCardTotal, sharedPayOnOrAfter, sharedPeriodFor } from './pay.js'
 import { totals, workDays, workShifts, monthRange, halfMonthRanges } from './calc.js'
 
 const company = { id: 'company', freq: 'biweeklyThu', anchor: '2026-10-01', weekEnd: 'sun', lag: 0 }
@@ -27,6 +27,16 @@ test('all jobs share the later Thursday payday', () => {
   assert.equal(sharedPayOnOrAfter(jobs, '2026-11-13', '2026-10-31'), '2026-11-26')
   assert.equal(sharedPayOnOrAfter(jobs, '2026-09-27', '2026-10-31'), '2026-10-01')
   assert.equal(sharedPayOnOrAfter(jobs, '2026-10-02', '2026-10-31'), '2026-10-15')
+  assert.deepEqual(sharedPeriodFor(jobs, '2026-11-26', '2026-10-31'), {
+    start: '2026-11-09',
+    end: '2026-11-22',
+    payday: '2026-11-26',
+  })
+  assert.deepEqual(sharedPeriodFor(jobs, '2026-11-12', '2026-10-31'), {
+    start: '2026-10-26',
+    end: '2026-11-08',
+    payday: '2026-11-12',
+  })
 })
 
 test('offset Flex paydays do not move the company PAY marks', () => {
