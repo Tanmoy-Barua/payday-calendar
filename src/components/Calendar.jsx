@@ -117,7 +117,7 @@ export default function Calendar({ jobs, months, view, selected, filter, today, 
         })}
       </div>
       <div className="legend" id="legend">
-        <span><i style={{ background: 'var(--accent-soft)', border: '1px solid var(--line)' }} />{fj ? `Work counting toward next ${fj.name} paycheck` : 'Pick a schedule to shade its pay period'}</span>
+        <span><i style={{ background: 'var(--accent-soft)', border: '1px solid var(--line)' }} />{fj ? `Work counting toward next ${fj.name} paycheck` : 'All schedules. Pick one to shade its pay period.'}</span>
         <span><i style={{ background: 'var(--pay)' }} />PAY = payday</span>
         <span><i style={{ background: 'var(--ink)' }} />Today</span>
       </div>

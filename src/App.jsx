@@ -231,7 +231,7 @@ export default function App() {
       setMonths(data.months || {})
       setDebts(data.debts || [])
       setBudget(data.budget || defaultBudgetNote())
-      setFilter(data.jobs?.[0]?.id || null)
+      setFilter(null)
       setStatus('Saved to the database')
       setReady(true)
     }).catch(err => {
@@ -378,7 +378,6 @@ export default function App() {
     const without = jobs.filter(j => j.id !== data.id)
     const idx = jobs.findIndex(j => j.id === data.id)
     const next = idx === -1 ? without.concat(data) : [...without.slice(0, idx), data, ...without.slice(idx)]
-    if (!filter) setFilter(data.id)
     setMode('jobs')
     setEditingJob(null)
     persistJobs(next)
@@ -387,7 +386,7 @@ export default function App() {
   function removeJob(id) {
     const next = jobs.filter(j => j.id !== id)
     setConfirmDel(null)
-    if (filter === id) setFilter(next[0]?.id || null)
+    if (filter === id) setFilter(null)
     persistJobs(next)
   }
 
